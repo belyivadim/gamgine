@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
         []const u8,
         "exe_name",
         "Name of the executable",
-    ) orelse "tetris";
+    ) orelse "gamgine";
 
 
     const target = b.standardTargetOptions(.{});
