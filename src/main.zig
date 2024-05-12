@@ -1,8 +1,10 @@
-const gg = @import("engine/gamgine.zig");
-const LogLevel = @import("engine/log.zig").LogLevel;
+const gg = @import("engine/core/gamgine.zig");
+const LogLevel = @import("engine/core/log.zig").LogLevel;
 const std = @import("std");
 
-const rl = @import("engine/raylib.zig");
+const rl = @import("engine/core/external/raylib.zig");
+
+const cbw = @import("engine/plugins/component_based_world.zig");
 
 const GameState = i32;
 const GamgineApp = gg.GamgineApp(GameState);
@@ -23,17 +25,33 @@ fn update_logic(_: *GamgineApp, game_state: *GameState, _: f32) void {
     game_state.* += 1;
 }
 
+const Foo = struct {
+    a: i32,
+};
+
 pub fn main() !void {
-    var gamgine = gg.Gamgine(i32).create("Test", gg.WindowConfig{});
+    var gamgine = gg.Gamgine.create("Test", gg.WindowConfig{});
     
-    var app = gamgine
+    _ = gamgine
        .setGpa(std.heap.page_allocator)
        .setFrameAllocator(std.heap.page_allocator)
-       .addRenderCallback(RenderCallback.create(-2, drawSomething))
-       .addRenderCallback(RenderCallback.create(-1, drawSomethingElse))
-       .addSystem(gg.SystemCallTime.update, System.create(update_logic))
-       .build();
+       .addPlugin(cbw.GameObjectWorldPlugin.make);
 
-    var state: GameState = 69;
-    try app.run(&state);
+    if (gamgine.any_building_error_occured) {
+        return error.Oops;
+    }
+
+    var app = try gamgine.build();
+    try app.run();
+
+    var comp = cbw.Component(Foo).create(Foo{.a = 69});
+    const icomp = &comp.icomponent;
+
+    const foo = icomp.getData(Foo);
+    if (foo) |f| {
+        std.debug.print("{d}\n", .{f.a}); 
+    } else {
+        std.debug.print("Wrong data type!\n", .{}); 
+    }
 }
+
