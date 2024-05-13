@@ -14,7 +14,7 @@ pub const GameObject = struct {
     allocator: std.mem.Allocator,
     logger: *const log.Logger,
 
-    fn create(allocator: std.mem.allocator, logger: *const log.Logger) Self {
+    fn create(allocator: std.mem.Allocator, logger: *const log.Logger) Self {
         return Self{
             .id = 0, // TODO: assign unique id
             .components = std.ArrayList(*IComponent).init(allocator),
@@ -29,8 +29,10 @@ pub const GameObject = struct {
     }
 
     fn update(self: *Self, dt: f32) void {
-        _ = self;
-        _ = dt;
+        for (self.components.items) |comp| {
+            comp.update(dt);
+        }
+        //self.logger.app_log(log.LogLevel.info, "Updating game object", .{});
     }
 
     pub fn addComponent(
@@ -38,18 +40,35 @@ pub const GameObject = struct {
         comptime CompDataT: type,
         component_data: CompDataT,
     ) *Self {
-        var component = self.allocator.create(Component(CompDataT).create(component_data)) catch |err| {
+        const component = self.allocator.create(Component(CompDataT)) catch |err| {
             self.logger.core_log(log.LogLevel.err, "Could not create component: {any}", .{err});
             return self;
         };
+        component.* = Component(CompDataT).create(component_data);
 
-        self.components.append(&component) catch |err| {
+        self.components.append(&component.icomponent) catch |err| {
             self.logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
             self.allocator.destroy(component);
             return self;
         };
 
         return self;
+    }
+
+    pub fn getComponentDataMut(self: *const Self, comptime T: type) ?*T {
+        for (self.components.items) |comp| {
+            const data = comp.getDataMut(T);
+            if (data != null) return data;
+        }
+        return null;
+    }
+
+    pub fn getComponentData(self: *const Self, comptime T: type) ?*const T {
+        for (self.components.items) |comp| {
+            const data = comp.getData(T);
+            if (data != null) return data;
+        }
+        return null;
     }
 };
 
@@ -81,12 +100,12 @@ pub const GameObjectWorldPlugin = struct {
     }
 
     pub fn newObject(self: *Self) ?*GameObject {
-        try self.objects.append(GameObject.create(self.allocator, self.logger)) catch |err| {
+        self.objects.append(GameObject.create(self.allocator, self.logger)) catch |err| {
             self.logger.core_log(log.LogLevel.err, "Could not create game object: {any}", .{err});
             return null;
         };
 
-        return &self.objects.items[self.object.items.len - 1];
+        return &self.objects.items[self.objects.items.len - 1];
     } 
 
     fn startUp(_: *gg.IPlugin) void {
@@ -117,6 +136,7 @@ pub const IComponent = struct {
     getDataMutFn: *const fn (*IComponent) *anyopaque,
     getDataFn: *const fn (*const IComponent) *const anyopaque,
     getDataTypeIdFn: *const fn(*const IComponent) usize,
+    updateFn: *const fn(*IComponent, f32) void,
 
     pub fn getDataMut(self: *IComponent, comptime T: type) ?*T {
         if (self.getDataTypeId() != utils.typeId(T)) return null;
@@ -132,6 +152,11 @@ pub const IComponent = struct {
     pub fn getDataTypeId(self: *const IComponent) usize {
         return self.getDataTypeIdFn(self);
     }
+
+    pub fn update(self: *IComponent, dt: f32) void {
+        self.updateFn(self, dt);
+    }
+
 };
 
 pub fn Component(comptime T: type) type {
@@ -146,6 +171,7 @@ pub fn Component(comptime T: type) type {
                     .getDataMutFn = getDataMut, 
                     .getDataFn = getData,
                     .getDataTypeIdFn = getDataTypeId,
+                    .updateFn = update,
                 },
             };
         }
@@ -162,6 +188,11 @@ pub fn Component(comptime T: type) type {
 
         fn getDataTypeId(_: *const IComponent) utils.TypeId {
             return utils.typeId(T);
+        }
+
+        pub fn update(icomponent: *IComponent, dt: f32) void {
+            const self: *Component(T) = @fieldParentPtr("icomponent", icomponent);
+            self.data.update(dt);
         }
     };
 }

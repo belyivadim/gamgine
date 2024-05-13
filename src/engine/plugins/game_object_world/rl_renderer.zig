@@ -2,6 +2,7 @@ const std = @import("std");
 const rl = @import("../../core/external/raylib.zig");
 const gg = @import("../../core/gamgine.zig");
 const utils = @import("../../core/utils.zig");
+const log = @import("../../core/log.zig");
 
 const gow = @import("game_object_world.zig");
 
@@ -13,6 +14,7 @@ pub const RlRendererPlugin = struct {
 
     self_allocator: std.mem.Allocator,
 
+    app: *const gg.GamgineApp,
     world: *gow.GameObjectWorldPlugin,
 
 
@@ -23,22 +25,34 @@ pub const RlRendererPlugin = struct {
         renderer.iplugin.tearDownFn = tearDown;
         renderer.iplugin.getTypeIdFn = getTypeId;
         renderer.self_allocator = app.gpa;
-        renderer.world = app.queryPlugin(gow.GameObjectWorldPlugin) orelse undefined;
+
+        renderer.app = app;
 
         return &renderer.iplugin;
     }
 
-    fn startUp(_: *gg.IPlugin) void {
+    fn startUp(iplugin: *gg.IPlugin) void {
+        var self: *Self = @fieldParentPtr("iplugin", iplugin);
+
+        self.world = self.app.queryPlugin(gow.GameObjectWorldPlugin) orelse {
+            self.app.logger.core_log(log.LogLevel.fatal, 
+                "RlRendererPlugin from game_object_world cannot work without GameObjectWorldPlugin. Shutting down.", .{});
+            std.process.exit(1);
+        };
     }
 
     fn update(iplugin: *gg.IPlugin, _: f32) void {
-        var self: *Self = @fieldParentPtr("iplugin", iplugin);
+        const self: *Self = @fieldParentPtr("iplugin", iplugin);
+        _ = self;
 
         rl.BeginDrawing();
         defer rl.EndDrawing();
         rl.ClearBackground(rl.RAYWHITE);
         
-        self.world.foo();
+        //for (self.world.objects) |*obj| {
+        //    for (obj.components) |comp| {
+        //    }
+        //}
     }
 
     fn tearDown(iplugin: *gg.IPlugin) void {
