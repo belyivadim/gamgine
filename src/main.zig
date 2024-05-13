@@ -2,23 +2,14 @@ const gg = @import("engine/core/gamgine.zig");
 const LogLevel = @import("engine/core/log.zig").LogLevel;
 const std = @import("std");
 
-const rl = @import("engine/core/external/raylib.zig");
+const renderer = @import("engine/plugins/game_object_world/rl_renderer.zig");
 
-const cbw = @import("engine/plugins/component_based_world.zig");
+const gow = @import("engine/plugins/game_object_world/game_object_world.zig");
 
 const GameState = i32;
 const GamgineApp = gg.GamgineApp(GameState);
 const RenderCallback = gg.RenderCallback(GameState);
 const System = gg.System(GameState);
-
-
-fn drawSomething(_: *GamgineApp, game_state: *i32, _: f32) void {
-    rl.DrawRectangle(100, 100, game_state.*, game_state.*, rl.RED);
-}
-
-fn drawSomethingElse(_: *GamgineApp, game_state: *GameState, _: f32) void {
-    rl.DrawRectangle(game_state.*, 150, 100, 100, rl.BLUE);
-}
 
 
 fn update_logic(_: *GamgineApp, game_state: *GameState, _: f32) void {
@@ -35,21 +26,23 @@ pub fn main() !void {
     _ = gamgine
        .setGpa(std.heap.page_allocator)
        .setFrameAllocator(std.heap.page_allocator)
-       .addPlugin(cbw.GameObjectWorldPlugin.make);
+       .addPlugin(gow.GameObjectWorldPlugin.make)
+       .addPlugin(renderer.RlRendererPlugin.make);
 
     if (gamgine.any_building_error_occured) {
+        gamgine.logger.app_log(LogLevel.fatal, "Could not build the application!", .{});
         return error.Oops;
     }
 
     var app = try gamgine.build();
     try app.run();
 
-    var comp = cbw.Component(Foo).create(Foo{.a = 69});
+    var comp = gow.Component(Foo).create(Foo{.a = 69});
     const icomp = &comp.icomponent;
 
     const foo = icomp.getData(Foo);
     if (foo) |f| {
-        std.debug.print("{d}\n", .{f.a}); 
+        std.debug.print("{any}\n", .{f}); 
     } else {
         std.debug.print("Wrong data type!\n", .{}); 
     }

@@ -2,9 +2,12 @@ const std = @import("std");
 const rl = @import("external/raylib.zig");
 const LogLevel = @import("log.zig").LogLevel;
 const Logger = @import("log.zig").Logger;
+const utils = @import("utils.zig");
 
 pub const GamgineApp = struct {
     const Self = @This();
+
+    pub const QueryPlugin = *const fn (*const Self, comptime type) ?*type;
 
     appname: [:0]const u8,
     logger: Logger,
@@ -31,13 +34,26 @@ pub const GamgineApp = struct {
         }
     } 
 
+    pub fn queryPlugin(self: *const Self, comptime T: type) ?*T {
+        for (self.plugins.items) |p| {
+            if (p.getTypeId() == utils.typeId(T)) {
+                return @ptrCast(@alignCast(p.getSelf(T)));
+            }
+        }
+
+        return null;
+    }
+
     fn init(self: *Self) void {
         self.initWindow();
     }
 
     fn deinit(self: *Self) void {
+        for (self.plugins.items) |p| {
+            p.tearDown();
+        }
+
         // TODO: free plugins
-        _ = self;
         rl.CloseWindow();
     }
 
@@ -75,6 +91,8 @@ pub const IPlugin = struct {
 
     startUpFn: *const fn (*IPlugin) void,
     updateFn: *const fn (*IPlugin, f32) void,
+    tearDownFn: *const fn (*IPlugin) void,
+    getTypeIdFn: *const fn () utils.TypeId,
 
     pub fn startUp(self: *IPlugin) void {
         self.startUpFn(self);
@@ -82,6 +100,19 @@ pub const IPlugin = struct {
 
     pub fn update(self: *IPlugin, dt: f32) void {
         self.updateFn(self, dt);
+    }
+
+    pub fn tearDown(self: *IPlugin) void {
+        self.tearDownFn(self);
+    }
+
+    pub fn getTypeId(self: *IPlugin) utils.TypeId {
+        return self.getTypeIdFn();
+    }
+
+    pub fn getSelf(self: *IPlugin, comptime T: type) *T {
+        const self_parent: *T = @fieldParentPtr("iplugin", self);
+        return self_parent;
     }
 };
 

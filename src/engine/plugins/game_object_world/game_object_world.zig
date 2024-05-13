@@ -1,16 +1,9 @@
 const std = @import("std");
-const log = @import("../core/log.zig");
-const gg = @import("../core/gamgine.zig");
-const rl = @import("../core/external/raylib.zig");
+const log = @import("../../core/log.zig");
+const gg = @import("../../core/gamgine.zig");
+const rl = @import("../../core/external/raylib.zig");
 
-fn typeId(comptime T: type) usize {
-    const H = struct {
-        var byte: u8 = 0;
-        var _ = T;
-    };
-
-    return @intFromPtr(&H.byte);
-}
+const utils = @import("../../core/utils.zig");
 
 
 pub const GameObject = struct {
@@ -32,7 +25,12 @@ pub const GameObject = struct {
 
     fn destroy(self: *Self) void {
         // TODO: free all components itself
-        self.components.free();
+        self.components.deinit();
+    }
+
+    fn update(self: *Self, dt: f32) void {
+        _ = self;
+        _ = dt;
     }
 
     pub fn addComponent(
@@ -69,11 +67,17 @@ pub const GameObjectWorldPlugin = struct {
 
         world.iplugin.updateFn = update;
         world.iplugin.startUpFn = startUp;
+        world.iplugin.tearDownFn = tearDown;
+        world.iplugin.getTypeIdFn = getTypeId;
         world.objects = std.ArrayList(GameObject).init(app.gpa);
         world.allocator = app.gpa;
         world.logger = &app.logger;
 
         return &world.iplugin;
+    }
+
+    pub fn foo(self: *const Self) void {
+        self.logger.core_log(log.LogLevel.info, "Foo", .{});
     }
 
     pub fn newObject(self: *Self) ?*GameObject {
@@ -88,12 +92,24 @@ pub const GameObjectWorldPlugin = struct {
     fn startUp(_: *gg.IPlugin) void {
     }
 
-    fn update(iplugin: *gg.IPlugin, _: f32) void {
-        _ = iplugin;
-        // temp code to render something because it is the only plugin yet
-        rl.BeginDrawing();
-        defer rl.EndDrawing();
-        rl.ClearBackground(rl.RAYWHITE);
+    fn update(iplugin: *gg.IPlugin, dt: f32) void {
+        const self: *Self = @fieldParentPtr("iplugin", iplugin);
+        for (self.objects.items) |*o| {
+            o.update(dt);
+        }
+    }
+
+    fn tearDown(iplugin: *gg.IPlugin) void {
+        var self: *Self = @fieldParentPtr("iplugin", iplugin);
+        for (self.objects.items) |*o| {
+            o.destroy();
+        }
+        self.objects.deinit();
+        self.allocator.destroy(self);
+    }
+
+    pub fn getTypeId() utils.TypeId {
+        return utils.typeId(Self);
     }
 };
 
@@ -103,12 +119,12 @@ pub const IComponent = struct {
     getDataTypeIdFn: *const fn(*const IComponent) usize,
 
     pub fn getDataMut(self: *IComponent, comptime T: type) ?*T {
-        if (self.getDataTypeId() != typeId(T)) return null;
+        if (self.getDataTypeId() != utils.typeId(T)) return null;
         return @ptrCast(@alignCast(self.getDataMutFn(self)));
     }
 
     pub fn getData(self: *const IComponent, comptime T: type) ?*const T {
-        if (self.getDataTypeId() != typeId(T)) return null;
+        if (self.getDataTypeId() != utils.typeId(T)) return null;
         const data = self.getDataFn(self);
         return @ptrCast(@alignCast(data));
     }
@@ -144,9 +160,8 @@ pub fn Component(comptime T: type) type {
             return &self.data;
         }
 
-        fn getDataTypeId(icomponent: *const IComponent) usize {
-            _ = icomponent;
-            return typeId(T);
+        fn getDataTypeId(_: *const IComponent) utils.TypeId {
+            return utils.typeId(T);
         }
     };
 }
