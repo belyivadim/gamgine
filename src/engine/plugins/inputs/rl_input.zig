@@ -6,12 +6,6 @@ const rl = @import("../../core/external/raylib.zig");
 pub const InputPlugin = struct {
     const Self = @This();
 
-    const KeyInfo = struct {
-        is_key_pressed_once: bool = false,
-        is_key_down: bool = false,
-        is_key_released: bool = false,
-    };
-
     // Do not change the name of `iplugin` variable
     iplugin: gg.IPlugin,
     self_allocator: std.mem.Allocator,
@@ -19,7 +13,8 @@ pub const InputPlugin = struct {
     // Add other dependecies from GamgineApp here
     // app: *const gg.GamgineApp,
 
-    keys_info: [KeyboardKey.getMaxKeyValue() + 1]KeyInfo,
+    keys_down: [KeyboardKey.getMaxKeyValue() + 1]KeyboardKey,
+    keys_down_count: usize,
 
 
     pub fn make(app: *const gg.GamgineApp) error{OutOfMemory}!*gg.IPlugin {
@@ -31,8 +26,8 @@ pub const InputPlugin = struct {
 
         // Initialize all internal fields here 
         plugin.self_allocator = app.gpa;
-        @memset(plugin.keys_info[0..], KeyInfo{});
-        plugin.keys_info[@intFromEnum(KeyboardKey.KEY_A)].is_key_down = true;
+        @memset(plugin.keys_down[0..], KeyboardKey.KEY_NULL);
+        plugin.keys_down_count = 0;
         
         // If dependecies from GamgineApp is needed
         // Save GamgineApp as a struct field and query any plugin you need
@@ -50,12 +45,22 @@ pub const InputPlugin = struct {
 
     fn update(iplugin: *gg.IPlugin, _: f32) void {
         const self: *Self = @fieldParentPtr("iplugin", iplugin);
-        for (self.keys_info[0..], 0..) |*ki, index| {
-            ki.is_key_down = rl.IsKeyDown(@intCast(index));
-            ki.is_key_pressed_once = rl.IsKeyPressed(@intCast(index));
-            ki.is_key_released = rl.IsKeyReleased(@intCast(index));
+
+        var i: usize = 0;
+        while (i < self.keys_down_count) {
+            while (i < self.keys_down_count and !self.isKeyDown(self.keys_down[i])) {
+                self.keys_down[i] = self.keys_down[self.keys_down_count - 1];
+                self.keys_down_count -= 1;
+            }
+            i += 1;
         }
 
+        while (true) {
+            const key = rl.GetKeyPressed();
+            if (key == 0) break;
+            self.keys_down[self.keys_down_count] = @enumFromInt(key);
+            self.keys_down_count += 1;
+        }
     }
 
     fn tearDown(iplugin: *gg.IPlugin) void {
@@ -67,22 +72,24 @@ pub const InputPlugin = struct {
         return utils.typeId(Self);
     }
 
-    pub fn isKeyDown(self: *const Self, key: KeyboardKey) bool {
-        return self.keys_info[@intFromEnum(key)].is_key_down;
+    pub fn isKeyDown(_: *const Self, key: KeyboardKey) bool {
+        return rl.IsKeyDown(@intCast(@intFromEnum(key)));
     }
 
-    pub fn isKeyPressedOnce(self: *const Self, key: KeyboardKey) bool {
-        return self.keys_info[@intFromEnum(key)].is_key_pressed_once;
+    pub fn isKeyPressedOnce(_: *const Self, key: KeyboardKey) bool {
+        return rl.IsKeyPressed(@intCast(@intFromEnum(key)));
     }
 
-    pub fn isKeyReleased(self: *const Self, key: KeyboardKey) bool {
-        return self.keys_info[@intFromEnum(key)].is_key_released;
+    pub fn isKeyReleased(_: *const Self, key: KeyboardKey) bool {
+        return rl.IsKeyReleased(@intCast(@intFromEnum(key)));
     }
 
-    pub fn isKeyUp(self: *const Self, key: KeyboardKey) bool {
-        return !(self.keys_info[@intFromEnum(key)].is_key_released
-            or self.keys_info[@intFromEnum(key)].is_key_pressed_once
-            or self.keys_info[@intFromEnum(key)].is_key_down);
+    pub fn isKeyUp(_: *const Self, key: KeyboardKey) bool {
+        return rl.IsKeyUp(@intCast(@intFromEnum(key)));
+    }
+
+    pub fn getKeysDown(self: *const Self) []const KeyboardKey {
+        return self.keys_down[0..self.keys_down_count];
     }
 };
 
