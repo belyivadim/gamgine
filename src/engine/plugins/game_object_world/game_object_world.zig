@@ -12,14 +12,14 @@ pub const GameObject = struct {
     id: usize,
     components: std.ArrayList(*IComponent),
     allocator: std.mem.Allocator,
-    logger: *const log.Logger,
+    app: *const gg.GamgineApp,
 
-    fn create(allocator: std.mem.Allocator, logger: *const log.Logger) Self {
+    fn create(allocator: std.mem.Allocator, app: *const gg.GamgineApp) Self {
         return Self{
             .id = 0, // TODO: assign unique id
             .components = std.ArrayList(*IComponent).init(allocator),
             .allocator = allocator,
-            .logger = logger,
+            .app = app,
         };
     }
 
@@ -48,13 +48,13 @@ pub const GameObject = struct {
         component_data: CompDataT,
     ) *Self {
         const component = self.allocator.create(Component(CompDataT)) catch |err| {
-            self.logger.core_log(log.LogLevel.err, "Could not create component: {any}", .{err});
+            self.app.logger.core_log(log.LogLevel.err, "Could not create component: {any}", .{err});
             return self;
         };
         component.* = Component(CompDataT).create(component_data);
 
         self.components.append(&component.icomponent) catch |err| {
-            self.logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
+            self.app.logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
             self.allocator.destroy(component);
             return self;
         };
@@ -86,7 +86,7 @@ pub const GameObjectWorldPlugin = struct {
 
     objects: std.ArrayList(GameObject),
     allocator: std.mem.Allocator,
-    logger: *const log.Logger,
+    app: *const gg.GamgineApp,
 
     pub fn make(app: *const gg.GamgineApp) error{OutOfMemory}!*gg.IPlugin {
         var world: *Self = try app.gpa.create(Self);
@@ -97,18 +97,14 @@ pub const GameObjectWorldPlugin = struct {
         world.iplugin.getTypeIdFn = getTypeId;
         world.objects = std.ArrayList(GameObject).init(app.gpa);
         world.allocator = app.gpa;
-        world.logger = &app.logger;
+        world.app = app;
 
         return &world.iplugin;
     }
 
-    pub fn foo(self: *const Self) void {
-        self.logger.core_log(log.LogLevel.info, "Foo", .{});
-    }
-
     pub fn newObject(self: *Self) ?*GameObject {
-        self.objects.append(GameObject.create(self.allocator, self.logger)) catch |err| {
-            self.logger.core_log(log.LogLevel.err, "Could not create game object: {any}", .{err});
+        self.objects.append(GameObject.create(self.allocator, self.app)) catch |err| {
+            self.app.logger.core_log(log.LogLevel.err, "Could not create game object: {any}", .{err});
             return null;
         };
 

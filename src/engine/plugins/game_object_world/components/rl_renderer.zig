@@ -6,6 +6,7 @@ const Transform2d = @import("rl_transform.zig").Transform2d;
 
 pub const Renderer2d = struct {
     const Self = @This();
+
     texture: rl.Texture,
     transform: *const Transform2d,
 
@@ -21,7 +22,7 @@ pub const Renderer2d = struct {
         if (maybe_transform) |t| {
             self.transform = t;
         } else {
-            owner.logger.
+            owner.app.logger.
                 core_log(log.LogLevel.warning, 
                     "Object {d} has Renderer2d Component without a Transform2d Component, by default it will be rendered at position (0,0).", 
                     .{owner.id});
