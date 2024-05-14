@@ -32,13 +32,11 @@ pub const InitWorldPlugin = struct {
         const self: *Self = @fieldParentPtr("iplugin", iplugin);
 
         // Initialize dependecies from GamgineApp here
-        var world = self.app.queryPlugin(gow.GameObjectWorldPlugin) orelse unreachable;
-        const square = world.newObject();
-        if (square) |sq| {
-            _ = sq
-                .addComponent(Transform2d, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}))
-                .addComponent(Renderer2d, Renderer2d.create(sq, rl.GREEN));
-        }
+        const world = self.app.queryPlugin(gow.GameObjectWorldPlugin) orelse unreachable;
+        self.createTestObject(world, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}));
+        self.createTestObject(world, Transform2d.create(rl.Vector2{.x = 200, .y = 100}, 0, rl.Vector2{.x = 1, .y = 1}));
+        self.createTestObject(world, Transform2d.create(rl.Vector2{.x = 500, .y = 300}, 45, rl.Vector2{.x = 1, .y = 1}));
+        world.startWorld();
     }
 
     fn update(iplugin: *gg.IPlugin, _: f32) void {
@@ -53,5 +51,18 @@ pub const InitWorldPlugin = struct {
 
     pub fn getTypeId() utils.TypeId {
         return utils.typeId(Self);
+    }
+
+
+    fn createTestObject(self: *const Self, world: *gow.GameObjectWorldPlugin, transform: Transform2d) void {
+        const square = world.newObject();
+        if (square) |sq| {
+            const maybe_texture = Renderer2d.createBlankTextureWithColor(rl.RED, 50, 50, self.app.gpa);
+            if (maybe_texture) |texture| {
+                _ = sq
+                    .addComponent(Transform2d, transform)
+                    .addComponent(Renderer2d, Renderer2d.create(texture));
+            }
+        }
     }
 };

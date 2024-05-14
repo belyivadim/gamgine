@@ -1,3 +1,4 @@
+const std = @import("std");
 const rl = @import("../../../core/external/raylib.zig");
 const log = @import("../../../core/log.zig");
 const gow = @import("../game_object_world.zig");
@@ -5,37 +6,57 @@ const Transform2d = @import("rl_transform.zig").Transform2d;
 
 pub const Renderer2d = struct {
     const Self = @This();
-    color: rl.Color,
+    texture: rl.Texture,
     transform: *const Transform2d,
 
-    pub fn create(owner: *const gow.GameObject, color: rl.Color) Self {
-        const maybe_transform = owner.getComponentData(Transform2d);
-        var transform: *const Transform2d = undefined;
-        if (maybe_transform) |t| {
-            transform = t;
-        } else {
-            owner.logger.
-                core_log(log.LogLevel.warning, 
-                    "Object {d} has Renderer2d Component without a Transform2d Component, it will not be rendered.", 
-                    .{owner.id});
-            transform = &Transform2d.Empty;
-        }
-
+    pub fn create(texture: rl.Texture) Self { 
         return Self{
-            .color = color,
-            .transform = transform,
+            .texture = texture,
+            .transform = &Transform2d.Empty,
         };
     }
 
-    pub fn update(self: *Self, _: f32) void {
-        rl.DrawRectangle(
-            @intFromFloat(self.transform.position.x), 
-            @intFromFloat(self.transform.position.y), 
-            @intFromFloat(self.transform.scale.x * 50), 
-            @intFromFloat(self.transform.scale.y * 50), 
-            self.color);
+    pub fn start(self: *Self, owner: *gow.GameObject) void {
+        const maybe_transform = owner.getComponentData(Transform2d);
+        if (maybe_transform) |t| {
+            self.transform = t;
+        } else {
+            owner.logger.
+                core_log(log.LogLevel.warning, 
+                    "Object {d} has Renderer2d Component without a Transform2d Component, by default it will be rendered at position (0,0).", 
+                    .{owner.id});
+        }
+    }
+
+    pub fn update(self: *Self, _: f32, _: *gow.GameObject) void {
+        rl.DrawTextureEx(self.texture, self.transform.position, self.transform.rotation, 1, rl.WHITE);
+    }
+
+    pub fn destroy(self: *Self, _: *gow.GameObject) void {
+        rl.UnloadTexture(self.texture);
+    }
+
+
+    pub fn createBlankTextureWithColor(color: rl.Color, width: i32, height: i32, allocator: std.mem.Allocator) ?rl.Texture {
+        const pixels = allocator.alloc(rl.Color, @intCast(width * height)) catch {
+            return null;
+        };
+        defer allocator.free(pixels);
+        @memset(pixels, color);
+
+        const img = rl.Image{
+            .data = @ptrCast(pixels),
+            .width = width,
+            .height = height,
+            .mipmaps = 1,
+            .format = rl.PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+        };
+
+        return rl.LoadTextureFromImage(img);
     }
 };
 
 pub const Renderer2dComponent = gow.Component(Renderer2d);
+
+
 

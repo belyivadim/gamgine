@@ -24,15 +24,22 @@ pub const GameObject = struct {
     }
 
     fn destroy(self: *Self) void {
-        // TODO: free all components itself
+        for (self.components.items) |comp| {
+            comp.destroy(self);
+        }
         self.components.deinit();
     }
 
     fn update(self: *Self, dt: f32) void {
         for (self.components.items) |comp| {
-            comp.update(dt);
+            comp.update(dt, self);
         }
-        //self.logger.app_log(log.LogLevel.info, "Updating game object", .{});
+    }
+
+    fn start(self: *Self) void {
+        for (self.components.items) |comp| {
+            comp.start(self);
+        }
     }
 
     pub fn addComponent(
@@ -127,6 +134,12 @@ pub const GameObjectWorldPlugin = struct {
         self.allocator.destroy(self);
     }
 
+    pub fn startWorld(self: *const Self) void {
+        for (self.objects.items) |*obj| {
+            obj.start();
+        }
+    }
+
     pub fn getTypeId() utils.TypeId {
         return utils.typeId(Self);
     }
@@ -136,7 +149,11 @@ pub const IComponent = struct {
     getDataMutFn: *const fn (*IComponent) *anyopaque,
     getDataFn: *const fn (*const IComponent) *const anyopaque,
     getDataTypeIdFn: *const fn(*const IComponent) usize,
-    updateFn: *const fn(*IComponent, f32) void,
+
+    startFn: *const fn(*IComponent, *GameObject) void,
+    updateFn: *const fn(*IComponent, f32, *GameObject) void,
+    destroyFn: *const fn(*IComponent, *GameObject) void,
+
 
     pub fn getDataMut(self: *IComponent, comptime T: type) ?*T {
         if (self.getDataTypeId() != utils.typeId(T)) return null;
@@ -153,10 +170,17 @@ pub const IComponent = struct {
         return self.getDataTypeIdFn(self);
     }
 
-    pub fn update(self: *IComponent, dt: f32) void {
-        self.updateFn(self, dt);
+    pub fn start(self: *IComponent, owner: *GameObject) void {
+        self.startFn(self, owner);
     }
 
+    pub fn update(self: *IComponent, dt: f32, owner: *GameObject) void {
+        self.updateFn(self, dt, owner);
+    }
+
+    pub fn destroy(self: *IComponent, owner: *GameObject) void {
+        self.destroyFn(self, owner);
+    }
 };
 
 pub fn Component(comptime T: type) type {
@@ -171,7 +195,9 @@ pub fn Component(comptime T: type) type {
                     .getDataMutFn = getDataMut, 
                     .getDataFn = getData,
                     .getDataTypeIdFn = getDataTypeId,
+                    .startFn = start,
                     .updateFn = update,
+                    .destroyFn = destroy,
                 },
             };
         }
@@ -190,9 +216,19 @@ pub fn Component(comptime T: type) type {
             return utils.typeId(T);
         }
 
-        pub fn update(icomponent: *IComponent, dt: f32) void {
+        pub fn start(icomponent: *IComponent, owner: *GameObject) void {
             const self: *Component(T) = @fieldParentPtr("icomponent", icomponent);
-            self.data.update(dt);
+            self.data.start(owner);
+        }
+
+        pub fn update(icomponent: *IComponent, dt: f32, owner: *GameObject) void {
+            const self: *Component(T) = @fieldParentPtr("icomponent", icomponent);
+            self.data.update(dt, owner);
+        }
+        
+        pub fn destroy(icomponent: *IComponent, owner: *GameObject) void {
+            const self: *Component(T) = @fieldParentPtr("icomponent", icomponent);
+            self.data.destroy(owner);
         }
     };
 }

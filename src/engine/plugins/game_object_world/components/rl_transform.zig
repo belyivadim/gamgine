@@ -30,8 +30,18 @@ pub const Transform2d = struct {
         self.scale = rl.Vector2Multiply(self.scale, factor);
     }
 
+    pub fn getRotationRad(self: *const Self) f32 {
+        return self.rotation * rl.DEG2RAD;
+    }
 
-    pub fn update(_: *Self, _: f32) void {
+
+    pub fn start(_: *Self, _: *gow.GameObject) void {
+    }
+
+    pub fn update(_: *Self, _: f32, _: *gow.GameObject) void {
+    }
+
+    pub fn destroy(_: *Self, _: *gow.GameObject) void {
     }
 };
 
