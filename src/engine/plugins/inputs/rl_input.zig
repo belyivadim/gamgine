@@ -92,21 +92,23 @@ pub const InputPlugin = struct {
         return self.keys_down[0..self.keys_down_count];
     }
 
-    pub fn mapKeysToVector2(self: *const Self, 
-        comptime key_negative_x: KeyboardKey, 
-        comptime key_positive_x: KeyboardKey,
-        comptime key_negative_y: KeyboardKey, 
-        comptime key_positive_y: KeyboardKey,
+    pub const KeyVector2Map = struct {
+        key: KeyboardKey,
+        value: rl.Vector2,
+    };
+
+    pub fn mapKeysToVector2(
+        self: *const Self,
+        keymap: []const KeyVector2Map,
     ) rl.Vector2 {
         var result = rl.Vector2Zero();
 
         for (self.getKeysDown()) |key| {
-            switch (key) {
-                key_negative_x => result.x = -1,
-                key_positive_x => result.x =  1,
-                key_negative_y => result.y = -1,
-                key_positive_y => result.y =  1,
-                else => {},
+            for (keymap) |km| {
+                if (key == km.key) {
+                    result = rl.Vector2Add(result, km.value);
+                    break;
+                }
             }
         }
 
