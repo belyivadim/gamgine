@@ -5,6 +5,7 @@ const utils = @import("../../engine/core/utils.zig");
 const gow = @import("../../engine/plugins/game_object_world/game_object_world.zig");
 const Renderer2d = @import("../../engine/plugins/game_object_world/components/rl_renderer.zig").Renderer2d;
 const Transform2d = @import("../../engine/plugins/game_object_world/components/rl_transform.zig").Transform2d;
+const CharacterController = @import("character_controller.zig").CharacterController;
 
 pub const InitWorldPlugin = struct {
     const Self = @This();
@@ -33,9 +34,18 @@ pub const InitWorldPlugin = struct {
 
         // Initialize dependecies from GamgineApp here
         const world = self.app.queryPlugin(gow.GameObjectWorldPlugin) orelse unreachable;
-        self.createTestObject(world, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}));
-        self.createTestObject(world, Transform2d.create(rl.Vector2{.x = 200, .y = 100}, 0, rl.Vector2{.x = 1, .y = 1}));
-        self.createTestObject(world, Transform2d.create(rl.Vector2{.x = 500, .y = 300}, 45, rl.Vector2{.x = 1, .y = 1}));
+        const player = self.createTestObject(world, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}), rl.RED);
+        _ = self.createTestObject(world, Transform2d.create(rl.Vector2{.x = 200, .y = 100}, 0, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
+        _ = self.createTestObject(world, Transform2d.create(rl.Vector2{.x = 500, .y = 300}, 45, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
+
+        if (player) |p| {
+            _ = p.addComponent(CharacterController, CharacterController.create());
+
+            if (p.getComponentDataMut(Renderer2d)) |r| {
+                r.layer = 1;
+            }
+        }
+
         world.startWorld();
     }
 
@@ -54,15 +64,16 @@ pub const InitWorldPlugin = struct {
     }
 
 
-    fn createTestObject(self: *const Self, world: *gow.GameObjectWorldPlugin, transform: Transform2d) void {
+    fn createTestObject(self: *const Self, world: *gow.GameObjectWorldPlugin, transform: Transform2d, color: rl.Color) ?*gow.GameObject {
         const square = world.newObject();
         if (square) |sq| {
-            const maybe_texture = Renderer2d.createBlankTextureWithColor(rl.RED, 50, 50, self.app.gpa);
+            const maybe_texture = Renderer2d.createBlankTextureWithColor(color, 50, 50, self.app.gpa);
             if (maybe_texture) |texture| {
                 _ = sq
                     .addComponent(Transform2d, transform)
-                    .addComponent(Renderer2d, Renderer2d.create(texture));
+                    .addComponent(Renderer2d, Renderer2d.create(texture, 0));
             }
         }
+        return square;
     }
 };

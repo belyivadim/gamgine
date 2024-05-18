@@ -6,6 +6,8 @@ const log = @import("../../core/log.zig");
 
 const gow = @import("game_object_world.zig");
 
+const Renderer2d = @import("components/rl_renderer.zig").Renderer2d;
+
 
 pub const RlRendererPlugin = struct {
     const Self = @This();
@@ -17,6 +19,8 @@ pub const RlRendererPlugin = struct {
     app: *const gg.GamgineApp,
     world: *gow.GameObjectWorldPlugin,
 
+    render_queue: std.ArrayList(*const Renderer2d),
+
 
     pub fn make(app: *const gg.GamgineApp) error{OutOfMemory}!*gg.IPlugin {
         var renderer: *Self = try app.gpa.create(Self);
@@ -25,6 +29,7 @@ pub const RlRendererPlugin = struct {
         renderer.iplugin.tearDownFn = tearDown;
         renderer.iplugin.getTypeIdFn = getTypeId;
         renderer.self_allocator = app.gpa;
+        renderer.render_queue = std.ArrayList(*const Renderer2d).init(app.gpa);
 
         renderer.app = app;
 
@@ -43,24 +48,52 @@ pub const RlRendererPlugin = struct {
 
     fn update(iplugin: *gg.IPlugin, _: f32) void {
         const self: *Self = @fieldParentPtr("iplugin", iplugin);
-        _ = self;
 
         rl.BeginDrawing();
         defer rl.EndDrawing();
         rl.ClearBackground(rl.RAYWHITE);
         
-        //for (self.world.objects) |*obj| {
-        //    for (obj.components) |comp| {
-        //    }
-        //}
+        for (self.render_queue.items) |renderer| {
+            rl.DrawTextureEx(renderer.texture, renderer.transform.position, renderer.transform.rotation, 1, rl.WHITE);
+        }
+
     }
 
     fn tearDown(iplugin: *gg.IPlugin) void {
         var self: *Self = @fieldParentPtr("iplugin", iplugin);
+        self.render_queue.deinit();
         self.self_allocator.destroy(self);
     }
 
     pub fn getTypeId() utils.TypeId {
         return utils.typeId(Self);
+    }
+
+    pub fn addRenderer2d(self: *Self, renderer2d: *const Renderer2d) void {
+        for (0..self.render_queue.items.len) |i| {
+            if (self.render_queue.items[i].layer > renderer2d.layer) {
+                const index = if (i == 0) 0 else i - 1;
+                self.render_queue.insert(index, renderer2d) catch |err| {
+                    self.app.logger.core_log(log.LogLevel.err, "RlRendererPlugin could not add renderer component to the queue: {any}", .{err});
+                    return;
+                };
+                return;
+            }
+        }
+
+        // all elements are on layers below, append to the end
+        self.render_queue.append(renderer2d) catch |err| {
+            self.app.logger.core_log(log.LogLevel.err, "RlRendererPlugin could not add renderer component to the queue: {any}", .{err});
+            return;
+        };
+    }
+
+    pub fn removeRenderer2d(self: *Self, renderer2d: *const Renderer2d) void {
+        for (0..self.render_queue.items.len) |i| {
+            if (self.render_queue.items[i] == renderer2d) {
+                _ = self.render_queue.orderedRemove(i);
+                return;
+            }
+        }
     }
 };

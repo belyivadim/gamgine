@@ -3,17 +3,22 @@ const rl = @import("../../../core/external/raylib.zig");
 const log = @import("../../../core/log.zig");
 const gow = @import("../game_object_world.zig");
 const Transform2d = @import("rl_transform.zig").Transform2d;
+const RendererPlugin = @import("../rl_renderer.zig").RlRendererPlugin;
 
 pub const Renderer2d = struct {
     const Self = @This();
 
     texture: rl.Texture,
+    layer: i32,
     transform: *const Transform2d,
+    renderer_plugin: *RendererPlugin,
 
-    pub fn create(texture: rl.Texture) Self { 
+    pub fn create(texture: rl.Texture, layer: i32) Self { 
         return Self{
             .texture = texture,
             .transform = &Transform2d.Empty,
+            .layer = layer,
+            .renderer_plugin = undefined,
         };
     }
 
@@ -27,13 +32,23 @@ pub const Renderer2d = struct {
                     "Object {d} has Renderer2d Component without a Transform2d Component, by default it will be rendered at position (0,0).", 
                     .{owner.id});
         }
+
+
+        self.renderer_plugin = owner.app.queryPlugin(RendererPlugin) orelse {
+            owner.app.logger.core_log(log.LogLevel.fatal, 
+                "RlRendererPlugin is required for rl_renderer.Renderer2d to work. Shutting down.", .{});
+            std.process.exit(1);
+        };
+
+        self.renderer_plugin.addRenderer2d(self);
     }
 
     pub fn update(self: *Self, _: f32, _: *gow.GameObject) void {
-        rl.DrawTextureEx(self.texture, self.transform.position, self.transform.rotation, 1, rl.WHITE);
+        _ = self;
     }
 
     pub fn destroy(self: *Self, _: *gow.GameObject) void {
+        self.renderer_plugin.removeRenderer2d(self);
         rl.UnloadTexture(self.texture);
     }
 
