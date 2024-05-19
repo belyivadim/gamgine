@@ -6,6 +6,9 @@ const gow = @import("../../engine/plugins/game_object_world/game_object_world.zi
 const Renderer2d = @import("../../engine/plugins/game_object_world/components/rl_renderer.zig").Renderer2d;
 const Transform2d = @import("../../engine/plugins/game_object_world/components/rl_transform.zig").Transform2d;
 const CharacterController = @import("character_controller.zig").CharacterController;
+const SceneManager = @import("../../engine/services/scenes/scene_manager_gow.zig").SceneManager;
+const Scene = @import("../../engine/services/scenes/scene_manager_gow.zig").Scene;
+
 
 pub const InitWorldPlugin = struct {
     const Self = @This();
@@ -33,20 +36,17 @@ pub const InitWorldPlugin = struct {
         const self: *Self = @fieldParentPtr("iplugin", iplugin);
 
         // Initialize dependecies from GamgineApp here
+
         const world = self.app.queryPlugin(gow.GameObjectWorldPlugin) orelse unreachable;
-        const player = self.createTestObject(world, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}), rl.RED);
-        _ = self.createTestObject(world, Transform2d.create(rl.Vector2{.x = 200, .y = 100}, 0, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
-        _ = self.createTestObject(world, Transform2d.create(rl.Vector2{.x = 500, .y = 300}, 45, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
 
-        if (player) |p| {
-            _ = p.addComponent(CharacterController, CharacterController.create());
+        const scene_manager = self.app.queryService(SceneManager) orelse unreachable;
+        scene_manager.addScene(Scene{
+            .name = "Main Scene",
+            .world = world,
+            .onLoadFn = loadMainScene,
+        });
 
-            if (p.getComponentDataMut(Renderer2d)) |r| {
-                r.layer = 1;
-            }
-        }
-
-        world.startWorld();
+        scene_manager.loadScene("Main Scene");
     }
 
     fn update(iplugin: *gg.IPlugin, _: f32) void {
@@ -63,11 +63,27 @@ pub const InitWorldPlugin = struct {
         return utils.typeId(Self);
     }
 
+    fn loadMainScene(scene: *Scene) void {
+        const player = createTestObject(scene.world, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}), rl.RED);
+        _ = createTestObject(scene.world, Transform2d.create(rl.Vector2{.x = 200, .y = 100}, 0, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
+        _ = createTestObject(scene.world, Transform2d.create(rl.Vector2{.x = 500, .y = 300}, 45, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
 
-    fn createTestObject(self: *const Self, world: *gow.GameObjectWorldPlugin, transform: Transform2d, color: rl.Color) ?*gow.GameObject {
+        if (player) |p| {
+            _ = p.addComponent(CharacterController, CharacterController.create());
+
+            if (p.getComponentDataMut(Renderer2d)) |r| {
+                r.layer = 1;
+            }
+        }
+
+        scene.world.startWorld();
+    }
+
+    fn createTestObject(world: *gow.GameObjectWorldPlugin, transform: Transform2d, color: rl.Color) ?*gow.GameObject {
         const square = world.newObject();
         if (square) |sq| {
-            const maybe_texture = Renderer2d.createBlankTextureWithColor(color, 50, 50, self.app.gpa);
+            // TODO: pass allocator to load scene function or maybe store it into Scene struct
+            const maybe_texture = Renderer2d.createBlankTextureWithColor(color, 50, 50, std.heap.page_allocator);
             if (maybe_texture) |texture| {
                 _ = sq
                     .addComponent(Transform2d, transform)

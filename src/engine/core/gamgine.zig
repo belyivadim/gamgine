@@ -20,6 +20,9 @@ pub const GamgineApp = struct {
     // plugins
     plugins: std.ArrayList(*IPlugin),
 
+    // services
+    services: std.ArrayList(*IService),
+
 
     // entry point
     pub fn run(self: *Self) !void { 
@@ -44,6 +47,16 @@ pub const GamgineApp = struct {
         return null;
     }
 
+    pub fn queryService(self: *const Self, comptime T: type) ?*T {
+        for (self.services.items) |s| {
+            if (s.getTypeId() == utils.typeId(T)) {
+                return @ptrCast(@alignCast(s.getSelf(T)));
+            }
+        }
+
+        return null;
+    }
+
     fn init(self: *Self) void {
         self.initWindow();
     }
@@ -52,8 +65,13 @@ pub const GamgineApp = struct {
         for (self.plugins.items) |p| {
             p.tearDown();
         }
+        self.plugins.deinit();
 
-        // TODO: free plugins
+        for (self.services.items) |s| {
+            s.tearDown();
+        }
+        self.services.deinit();
+
         rl.CloseWindow();
     }
 
@@ -70,6 +88,10 @@ pub const GamgineApp = struct {
     fn startUp(self: *Self) void {
         for (self.plugins.items) |p| {
             p.startUp();
+        }
+
+        for (self.services.items) |s| {
+            s.startUp();
         }
     }
 
@@ -116,6 +138,31 @@ pub const IPlugin = struct {
     }
 };
 
+pub const IService = struct {
+    const Creator = *const fn(*const GamgineApp) error{OutOfMemory}!*IService;
+
+    startUpFn: *const fn (*IService) void,
+    tearDownFn: *const fn (*IService) void,
+    getTypeIdFn: *const fn () utils.TypeId,
+
+    pub fn startUp(self: *IService) void {
+        self.startUpFn(self);
+    }
+
+    pub fn tearDown(self: *IService) void {
+        self.tearDownFn(self);
+    }
+
+    pub fn getTypeId(self: *IService) utils.TypeId {
+        return self.getTypeIdFn();
+    }
+
+    pub fn getSelf(self: *IService, comptime T: type) *T {
+        const self_parent: *T = @fieldParentPtr("iservice", self);
+        return self_parent;
+    }
+};
+
 
 pub const Gamgine = struct {
     const Self = @This();
@@ -130,6 +177,9 @@ pub const Gamgine = struct {
 
     // plugins 
     plugin_creators: ?std.ArrayList(IPlugin.Creator) = null,
+
+    // services
+    service_creators: ?std.ArrayList(IService.Creator) = null,
 
     // app
     app: GamgineApp = undefined,
@@ -168,7 +218,16 @@ pub const Gamgine = struct {
             .gpa = self.gpa,
             .frame_allocator = self.frame_allocator,
             .plugins = std.ArrayList(*IPlugin).init(self.gpa),
+            .services = std.ArrayList(*IService).init(self.gpa),
         };
+
+        if (self.service_creators) |creators| {
+            self.logger.core_log(LogLevel.info, "GAMEGINE: Initializing Services.\n", .{});
+            for (creators.items) |c| {
+                const service = try c(&self.app);
+                try self.app.services.append(service);
+            }
+        }
 
         if (self.plugin_creators) |creators| {
             self.logger.core_log(LogLevel.info, "GAMEGINE: Initializing plugins.\n", .{});
@@ -179,6 +238,7 @@ pub const Gamgine = struct {
         } else {
             self.logger.core_log(LogLevel.warning, "GAMEGINE: No plugins were added to the application!\n", .{});
         }
+
 
         return &self.app;
     }
@@ -213,6 +273,17 @@ pub const Gamgine = struct {
 
         const creators = &(self.plugin_creators orelse unreachable);
         self.appendToArrayList(IPlugin.Creator, creators, plug_creator, "Could not register plugin creator");
+
+        return self;
+    }
+
+    pub fn addService(self: *Self, service_creator: IService.Creator) *Self {
+        if (self.service_creators == null) {
+            self.service_creators = std.ArrayList(IService.Creator).init(self.gpa);
+        }
+
+        const creators = &(self.service_creators orelse unreachable);
+        self.appendToArrayList(IService.Creator, creators, service_creator, "Could not register service creator");
 
         return self;
     }

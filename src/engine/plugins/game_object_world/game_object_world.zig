@@ -136,6 +136,12 @@ pub const GameObjectWorldPlugin = struct {
         }
     }
 
+    pub fn clean(self: *Self) void {
+        for (self.objects.items) |*o| {
+            o.destroy();
+        }
+    }
+
     pub fn getTypeId() utils.TypeId {
         return utils.typeId(Self);
     }
