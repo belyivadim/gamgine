@@ -4,11 +4,11 @@ const rl = @import("../../engine/core/external/raylib.zig");
 const utils = @import("../../engine/core/utils.zig");
 const gow = @import("../../engine/plugins/game_object_world/game_object_world.zig");
 const Renderer2d = @import("../../engine/plugins/game_object_world/components/rl_renderer.zig").Renderer2d;
+const RendererPlugin = @import("../../engine/plugins/game_object_world/rl_renderer.zig").RlRendererPlugin;
 const Transform2d = @import("../../engine/plugins/game_object_world/components/rl_transform.zig").Transform2d;
 const CharacterController = @import("character_controller.zig").CharacterController;
 const SceneManager = @import("../../engine/services/scenes/scene_manager_gow.zig").SceneManager;
 const Scene = @import("../../engine/services/scenes/scene_manager_gow.zig").Scene;
-
 
 pub const InitWorldPlugin = struct {
     const Self = @This();
@@ -44,6 +44,12 @@ pub const InitWorldPlugin = struct {
             .name = "Main Scene",
             .world = world,
             .onLoadFn = loadMainScene,
+            .main_camera = rl.Camera2D{
+                .offset = rl.Vector2Zero(),
+                .target = rl.Vector2{.x = -50, .y = -50},
+                .rotation = 0,
+                .zoom = 1,
+            },
         });
 
         scene_manager.loadScene("Main Scene");
@@ -63,7 +69,7 @@ pub const InitWorldPlugin = struct {
         return utils.typeId(Self);
     }
 
-    fn loadMainScene(scene: *Scene) void {
+    fn loadMainScene(scene: *Scene, app: *const gg.GamgineApp) void {
         const player = createTestObject(scene.world, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}), rl.RED);
         _ = createTestObject(scene.world, Transform2d.create(rl.Vector2{.x = 200, .y = 100}, 0, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
         _ = createTestObject(scene.world, Transform2d.create(rl.Vector2{.x = 500, .y = 300}, 45, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
@@ -75,6 +81,9 @@ pub const InitWorldPlugin = struct {
                 r.layer = 1;
             }
         }
+
+        const renderer = app.queryPlugin(RendererPlugin) orelse unreachable;
+        renderer.main_camera = scene.main_camera;
 
         scene.world.startWorld();
     }

@@ -1,4 +1,5 @@
 const std = @import("std");
+const rl = @import("../../core/external/raylib.zig");
 const gg = @import("../../core/gamgine.zig");
 const log = @import("../../core/log.zig");
 const utils = @import("../../core/utils.zig");
@@ -7,19 +8,19 @@ const gow = @import("../../plugins/game_object_world/game_object_world.zig");
 pub const Scene = struct {
     name: [:0] const u8,
     world: *gow.GameObjectWorldPlugin,
-    onLoadFn: ?*const fn(*Scene) void = null,
-    onUnloadFn: ?*const fn(*Scene) void = null,
-    // TODO: main_camera: ???
+    onLoadFn: ?*const fn(*Scene, app: *const gg.GamgineApp) void = null,
+    onUnloadFn: ?*const fn(*Scene, app: *const gg.GamgineApp) void = null,
+    main_camera: rl.Camera2D,
 
-    pub fn load(self: *Scene) void {
+    pub fn load(self: *Scene, app: *const gg.GamgineApp) void {
         if (self.onLoadFn) |loader| {
-            loader(self);
+            loader(self, app);
         }
     }
 
-    pub fn unload(self: *Scene) void {
+    pub fn unload(self: *Scene, app: *const gg.GamgineApp) void {
         if (self.onUnloadFn) |unloader| {
-            unloader(self);
+            unloader(self, app);
         }
     }
 };
@@ -87,9 +88,9 @@ pub const SceneManager = struct {
         var maybe_scene = self.scenes.get(scene_name);
         if (maybe_scene) |*scene| {
             if (self.active_scene) |active_scene| {
-                active_scene.unload();
+                active_scene.unload(self.app);
             }
-            scene.load();
+            scene.load(self.app);
             self.active_scene = scene;
         } else {
             self.app.logger.core_log(log.LogLevel.err, "Scene manager could not load the scene \"{s}\", because it was not added.",

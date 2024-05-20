@@ -21,6 +21,10 @@ pub const RlRendererPlugin = struct {
 
     render_queue: std.ArrayList(*const Renderer2d),
 
+    // by default will be null,
+    // can be changed at any time
+    main_camera: ?rl.Camera2D,
+
 
     pub fn make(app: *const gg.GamgineApp) error{OutOfMemory}!*gg.IPlugin {
         var renderer: *Self = try app.gpa.create(Self);
@@ -30,6 +34,7 @@ pub const RlRendererPlugin = struct {
         renderer.iplugin.getTypeIdFn = getTypeId;
         renderer.self_allocator = app.gpa;
         renderer.render_queue = std.ArrayList(*const Renderer2d).init(app.gpa);
+        renderer.main_camera = null;
 
         renderer.app = app;
 
@@ -53,10 +58,15 @@ pub const RlRendererPlugin = struct {
         defer rl.EndDrawing();
         rl.ClearBackground(rl.RAYWHITE);
         
-        for (self.render_queue.items) |renderer| {
-            rl.DrawTextureEx(renderer.texture, renderer.transform.position, renderer.transform.rotation, 1, rl.WHITE);
-        }
+        if (self.main_camera) |cam| {
+            rl.BeginMode2D(cam);
+            defer rl.EndMode2D();
 
+
+            for (self.render_queue.items) |renderer| {
+                rl.DrawTextureEx(renderer.texture, renderer.transform.position, renderer.transform.rotation, 1, rl.WHITE);
+            }
+        }
     }
 
     fn tearDown(iplugin: *gg.IPlugin) void {
