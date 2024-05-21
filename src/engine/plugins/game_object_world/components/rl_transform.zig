@@ -43,6 +43,10 @@ pub const Transform2d = struct {
 
     pub fn destroy(_: *Self, _: *gow.GameObject) void {
     }
+
+    pub fn clone(self: *const Self) Self {
+        return self.*;
+    }
 };
 
 pub const Transform2dComponent = gow.Component(Transform2d);

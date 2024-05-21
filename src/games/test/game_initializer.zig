@@ -9,6 +9,7 @@ const Transform2d = @import("../../engine/plugins/game_object_world/components/r
 const CharacterController = @import("character_controller.zig").CharacterController;
 const SceneManager = @import("../../engine/services/scenes/scene_manager_gow.zig").SceneManager;
 const Scene = @import("../../engine/services/scenes/scene_manager_gow.zig").Scene;
+const log = @import("../../engine/core/log.zig");
 
 pub const InitWorldPlugin = struct {
     const Self = @This();
@@ -72,7 +73,22 @@ pub const InitWorldPlugin = struct {
     fn loadMainScene(scene: *Scene, app: *const gg.GamgineApp) void {
         const player = createTestObject(scene.world, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}), rl.RED);
         _ = createTestObject(scene.world, Transform2d.create(rl.Vector2{.x = 200, .y = 100}, 0, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
-        _ = createTestObject(scene.world, Transform2d.create(rl.Vector2{.x = 500, .y = 300}, 45, rl.Vector2{.x = 1, .y = 1}), rl.BLUE);
+        const maybe_to1 = createTestObject(scene.world, Transform2d.create(rl.Vector2{.x = 500, .y = 300}, 0, rl.Vector2{.x = 1, .y = 1}), rl.PINK);
+
+        if (maybe_to1) |to1| {
+            const maybe_to2 = to1.clone(scene.world);
+            if (maybe_to2) |to2| {
+                const maybe_transform = to2.getComponentDataMut(Transform2d);
+                if (maybe_transform) |transform| {
+                    app.logger.app_log(log.LogLevel.info, "transform 2 {*}", .{transform});
+                    transform.rotate(45);
+                }
+            }
+            const maybe_transform = to1.getComponentDataMut(Transform2d);
+            if (maybe_transform) |transform| {
+                app.logger.app_log(log.LogLevel.info, "transform 1 {*}", .{transform});
+            }
+        }
 
         if (player) |p| {
             _ = p.addComponent(CharacterController, CharacterController.create());

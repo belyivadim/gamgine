@@ -8,15 +8,18 @@ pub const CharacterController = struct {
     const Self = @This();
 
     transform: *Transform2d,
+    owner: *gow.GameObject,
 
     pub fn create() Self {
         return Self{
             .transform = undefined,
+            .owner = undefined,
         };
     }
 
 
     pub fn start(self: *Self, owner: *gow.GameObject) void {
+        self.owner = owner;
         self.transform = owner.getComponentDataMut(Transform2d) orelse unreachable;
     }
 
@@ -38,6 +41,10 @@ pub const CharacterController = struct {
     }
 
     pub fn destroy(_: *Self, _: *gow.GameObject) void {
+    }
+
+    pub fn clone(_: *const Self) Self {
+        return CharacterController.create();
     }
 };
 

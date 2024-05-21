@@ -42,16 +42,38 @@ pub const GameObject = struct {
         }
     }
 
+    pub fn clone(self: *const Self, world: *GameObjectWorldPlugin) ?*GameObject {
+        const maybe_cloned_go = world.newObject();
+
+        if (maybe_cloned_go) |cloned_go| {
+            for (self.components.items) |comp| {
+                const maybe_cloned_icomp = comp.clone(self.allocator);
+                if (maybe_cloned_icomp) |cloned_icomp| {
+                    cloned_go.components.append(cloned_icomp) catch |err| {
+                        self.app.logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
+                        cloned_icomp.destroy(cloned_go);
+                        continue;
+                    };
+                }
+            }
+
+            cloned_go.start();
+
+            return cloned_go;
+        } else {
+            return null;
+        }
+    }
+
     pub fn addComponent(
         self: *Self, 
         comptime CompDataT: type,
         component_data: CompDataT,
     ) *Self {
-        const component = self.allocator.create(Component(CompDataT)) catch |err| {
-            self.app.logger.core_log(log.LogLevel.err, "Could not create component: {any}", .{err});
+        const component = Component(CompDataT).make(component_data, self.allocator) orelse {
+            self.app.logger.core_log(log.LogLevel.err, "Could not create component.", .{});
             return self;
         };
-        component.* = Component(CompDataT).create(component_data);
 
         self.components.append(&component.icomponent) catch |err| {
             self.app.logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
@@ -156,6 +178,7 @@ pub const IComponent = struct {
     updateFn: *const fn(*IComponent, f32, *GameObject) void,
     destroyFn: *const fn(*IComponent, *GameObject) void,
 
+    cloneFn: *const fn(*const IComponent, std.mem.Allocator) ?*IComponent,
 
     pub fn getDataMut(self: *IComponent, comptime T: type) ?*T {
         if (self.getDataTypeId() != utils.typeId(T)) return null;
@@ -183,10 +206,16 @@ pub const IComponent = struct {
     pub fn destroy(self: *IComponent, owner: *GameObject) void {
         self.destroyFn(self, owner);
     }
+
+    pub fn clone(self: *const IComponent, allocator: std.mem.Allocator) ?*IComponent {
+        return self.cloneFn(self, allocator);
+    }
 };
 
 pub fn Component(comptime T: type) type {
     return struct {
+        const Self = @This();
+
         data: T,
         icomponent: IComponent,
 
@@ -200,8 +229,19 @@ pub fn Component(comptime T: type) type {
                     .startFn = start,
                     .updateFn = update,
                     .destroyFn = destroy,
+                    .cloneFn = clone,
                 },
             };
+        }
+        
+        pub fn make(component_data: T, allocator: std.mem.Allocator) ?*Component(T) {
+            const component = allocator.create(Component(T)) catch {
+                return null;
+            };
+
+            component.* = Component(T).create(component_data);
+
+            return component;
         }
 
         pub fn getDataMut(icomponent: *IComponent) *anyopaque {
@@ -231,6 +271,17 @@ pub fn Component(comptime T: type) type {
         pub fn destroy(icomponent: *IComponent, owner: *GameObject) void {
             const self: *Component(T) = @fieldParentPtr("icomponent", icomponent);
             self.data.destroy(owner);
+        }
+
+        pub fn clone(icomponent: *const IComponent, allocator: std.mem.Allocator) ?*IComponent {
+            const self: *const Component(T) = @fieldParentPtr("icomponent", icomponent);
+            const maybe_comp = Component(T).make(self.data.clone(), allocator);
+
+            if (maybe_comp) |comp| {
+                return &comp.icomponent;
+            } else {
+                return null;
+            }
         }
     };
 }

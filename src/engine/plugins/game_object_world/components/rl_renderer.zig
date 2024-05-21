@@ -53,6 +53,12 @@ pub const Renderer2d = struct {
     }
 
 
+    pub fn clone(self: *const Self) Self {
+        const new_texture = rl.LoadTextureFromImage(rl.LoadImageFromTexture(self.texture));
+        return Renderer2d.create(new_texture, self.layer);
+    }
+
+
     pub fn createBlankTextureWithColor(color: rl.Color, width: i32, height: i32, allocator: std.mem.Allocator) ?rl.Texture {
         const pixels = allocator.alloc(rl.Color, @intCast(width * height)) catch {
             return null;
