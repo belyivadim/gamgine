@@ -15,6 +15,10 @@ pub const GameObject = struct {
     allocator: std.mem.Allocator,
     app: *const gg.GamgineApp,
 
+    pub fn createPrefab(allocator: std.mem.Allocator, app: *const gg.GamgineApp) Self {
+        return create(allocator, app);
+    }
+
     fn create(allocator: std.mem.Allocator, app: *const gg.GamgineApp) Self {
         return Self{
             .id = 0, // TODO: assign unique id
@@ -119,6 +123,7 @@ pub const GameObjectWorldPlugin = struct {
     iplugin: gg.IPlugin,
 
     objects: std.ArrayList(GameObject),
+    objectsToDestroy: std.ArrayList(*const GameObject),
     allocator: std.mem.Allocator,
     app: *const gg.GamgineApp,
 
@@ -130,6 +135,7 @@ pub const GameObjectWorldPlugin = struct {
         world.iplugin.tearDownFn = tearDown;
         world.iplugin.getTypeIdFn = getTypeId;
         world.objects = std.ArrayList(GameObject).init(app.gpa);
+        world.objectsToDestroy = std.ArrayList(*const GameObject).init(app.gpa);
         world.allocator = app.gpa;
         world.app = app;
 
@@ -146,13 +152,9 @@ pub const GameObjectWorldPlugin = struct {
     } 
 
     pub fn destroyObject(self: *Self, game_object: *GameObject) void {
-        for (0..self.objects.items.len) |i| {
-            if (&self.objects.items[i] == game_object) {
-                game_object.destroy();
-                _ = self.objects.swapRemove(i);
-                return;
-            }
-        }
+        self.objectsToDestroy.append(game_object) catch |err| {
+            self.app.logger.core_log(log.LogLevel.err, "Could not schedule destruction of object {any}", .{err});
+        }; 
     }
 
     fn startUp(_: *gg.IPlugin) void {
@@ -160,6 +162,20 @@ pub const GameObjectWorldPlugin = struct {
 
     fn update(iplugin: *gg.IPlugin, dt: f32) void {
         const self: *Self = @fieldParentPtr("iplugin", iplugin);
+
+
+        for (self.objectsToDestroy.items) |obj| {
+            for (0..self.objects.items.len) |i| {
+                if (&self.objects.items[i] == obj) {
+                    self.objects.items[i].destroy();
+                    _ = self.objects.swapRemove(i);
+                    break;
+                }
+            }
+        }
+
+        self.objectsToDestroy.clearRetainingCapacity();
+
         for (self.objects.items) |*o| {
             o.update(dt);
         }
@@ -171,6 +187,7 @@ pub const GameObjectWorldPlugin = struct {
             o.destroy();
         }
         self.objects.deinit();
+        self.objectsToDestroy.deinit();
         self.allocator.destroy(self);
     }
 
