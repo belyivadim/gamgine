@@ -145,6 +145,16 @@ pub const GameObjectWorldPlugin = struct {
         return &self.objects.items[self.objects.items.len - 1];
     } 
 
+    pub fn destroyObject(self: *Self, game_object: *GameObject) void {
+        for (0..self.objects.items.len) |i| {
+            if (&self.objects.items[i] == game_object) {
+                game_object.destroy();
+                _ = self.objects.swapRemove(i);
+                return;
+            }
+        }
+    }
+
     fn startUp(_: *gg.IPlugin) void {
     }
 

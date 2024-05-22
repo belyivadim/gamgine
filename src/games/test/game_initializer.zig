@@ -80,13 +80,8 @@ pub const InitWorldPlugin = struct {
             if (maybe_to2) |to2| {
                 const maybe_transform = to2.getComponentDataMut(Transform2d);
                 if (maybe_transform) |transform| {
-                    app.logger.app_log(log.LogLevel.info, "transform 2 {*}", .{transform});
                     transform.rotate(45);
                 }
-            }
-            const maybe_transform = to1.getComponentDataMut(Transform2d);
-            if (maybe_transform) |transform| {
-                app.logger.app_log(log.LogLevel.info, "transform 1 {*}", .{transform});
             }
         }
 
@@ -104,7 +99,7 @@ pub const InitWorldPlugin = struct {
         scene.world.startWorld();
 
         if (player) |p| {
-            p.setActive(false);
+            scene.world.destroyObject(p);
         }
     }
 
