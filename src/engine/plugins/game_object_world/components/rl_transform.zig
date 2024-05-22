@@ -47,6 +47,9 @@ pub const Transform2d = struct {
     pub fn clone(self: *const Self) Self {
         return self.*;
     }
+
+    pub fn setActive(_: *Self, _: bool) void {
+    }
 };
 
 pub const Transform2dComponent = gow.Component(Transform2d);

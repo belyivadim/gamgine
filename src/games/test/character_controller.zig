@@ -46,5 +46,8 @@ pub const CharacterController = struct {
     pub fn clone(_: *const Self) Self {
         return CharacterController.create();
     }
+
+    pub fn setActive(_: *Self, _: bool) void {
+    }
 };
 

@@ -102,6 +102,10 @@ pub const InitWorldPlugin = struct {
         renderer.main_camera = scene.main_camera;
 
         scene.world.startWorld();
+
+        if (player) |p| {
+            p.setActive(false);
+        }
     }
 
     fn createTestObject(world: *gow.GameObjectWorldPlugin, transform: Transform2d, color: rl.Color) ?*gow.GameObject {

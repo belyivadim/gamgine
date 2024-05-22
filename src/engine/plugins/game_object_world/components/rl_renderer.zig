@@ -13,12 +13,15 @@ pub const Renderer2d = struct {
     transform: *const Transform2d,
     renderer_plugin: *RendererPlugin,
 
+    is_active: bool,
+
     pub fn create(texture: rl.Texture, layer: i32) Self { 
         return Self{
             .texture = texture,
             .transform = &Transform2d.Empty,
             .layer = layer,
             .renderer_plugin = undefined,
+            .is_active = true,
         };
     }
 
@@ -40,7 +43,9 @@ pub const Renderer2d = struct {
             std.process.exit(1);
         };
 
-        self.renderer_plugin.addRenderer2d(self);
+        if (self.is_active) {
+            self.renderer_plugin.addRenderer2d(self);
+        }
     }
 
     pub fn update(self: *Self, _: f32, _: *gow.GameObject) void {
@@ -56,6 +61,18 @@ pub const Renderer2d = struct {
     pub fn clone(self: *const Self) Self {
         const new_texture = rl.LoadTextureFromImage(rl.LoadImageFromTexture(self.texture));
         return Renderer2d.create(new_texture, self.layer);
+    }
+
+    pub fn setActive(self: *Self, active: bool) void {
+        if (self.is_active == active) return;
+
+        self.is_active = active;
+
+        if (active) {
+            self.renderer_plugin.addRenderer2d(self);
+        } else {
+            self.renderer_plugin.removeRenderer2d(self);
+        }
     }
 
 

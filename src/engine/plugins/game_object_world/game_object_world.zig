@@ -10,6 +10,7 @@ pub const GameObject = struct {
     const Self = @This();
 
     id: usize,
+    is_active: bool,
     components: std.ArrayList(*IComponent),
     allocator: std.mem.Allocator,
     app: *const gg.GamgineApp,
@@ -17,6 +18,7 @@ pub const GameObject = struct {
     fn create(allocator: std.mem.Allocator, app: *const gg.GamgineApp) Self {
         return Self{
             .id = 0, // TODO: assign unique id
+            .is_active = true,
             .components = std.ArrayList(*IComponent).init(allocator),
             .allocator = allocator,
             .app = app,
@@ -31,6 +33,8 @@ pub const GameObject = struct {
     }
 
     fn update(self: *Self, dt: f32) void {
+        if (!self.is_active) return;
+
         for (self.components.items) |comp| {
             comp.update(dt, self);
         }
@@ -39,6 +43,14 @@ pub const GameObject = struct {
     fn start(self: *Self) void {
         for (self.components.items) |comp| {
             comp.start(self);
+        }
+    }
+
+    pub fn setActive(self: *Self, active: bool) void {
+        self.is_active = active;
+
+        for (self.components.items) |comp| {
+            comp.setActive(active);
         }
     }
 
@@ -180,6 +192,9 @@ pub const IComponent = struct {
 
     cloneFn: *const fn(*const IComponent, std.mem.Allocator) ?*IComponent,
 
+    setActiveFn: *const fn (*IComponent, active: bool) void,
+    is_active: bool = true,
+
     pub fn getDataMut(self: *IComponent, comptime T: type) ?*T {
         if (self.getDataTypeId() != utils.typeId(T)) return null;
         return @ptrCast(@alignCast(self.getDataMutFn(self)));
@@ -200,6 +215,8 @@ pub const IComponent = struct {
     }
 
     pub fn update(self: *IComponent, dt: f32, owner: *GameObject) void {
+        if (!self.is_active) return;
+
         self.updateFn(self, dt, owner);
     }
 
@@ -209,6 +226,10 @@ pub const IComponent = struct {
 
     pub fn clone(self: *const IComponent, allocator: std.mem.Allocator) ?*IComponent {
         return self.cloneFn(self, allocator);
+    }
+
+    pub fn setActive(self: *IComponent, active: bool) void {
+        self.setActiveFn(self, active);
     }
 };
 
@@ -230,6 +251,7 @@ pub fn Component(comptime T: type) type {
                     .updateFn = update,
                     .destroyFn = destroy,
                     .cloneFn = clone,
+                    .setActiveFn = setActive,
                 },
             };
         }
@@ -282,6 +304,12 @@ pub fn Component(comptime T: type) type {
             } else {
                 return null;
             }
+        }
+
+        pub fn setActive(icomponent: *IComponent, active: bool) void {
+            const self: *Component(T) = @fieldParentPtr("icomponent", icomponent);
+            icomponent.is_active = active;
+            self.data.setActive(active);
         }
     };
 }
