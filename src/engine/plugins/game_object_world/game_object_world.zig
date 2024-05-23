@@ -19,6 +19,10 @@ pub const GameObject = struct {
         return create(allocator, app);
     }
 
+    pub fn destroyPrefab(self: *Self) void {
+        self.destroy();
+    }
+
     fn create(allocator: std.mem.Allocator, app: *const gg.GamgineApp) Self {
         return Self{
             .id = 0, // TODO: assign unique id
@@ -161,8 +165,7 @@ pub const GameObjectWorldPlugin = struct {
     }
 
     fn update(iplugin: *gg.IPlugin, dt: f32) void {
-        const self: *Self = @fieldParentPtr("iplugin", iplugin);
-
+        const self: *Self = @fieldParentPtr("iplugin", iplugin); 
 
         for (self.objectsToDestroy.items) |obj| {
             for (0..self.objects.items.len) |i| {
@@ -201,6 +204,8 @@ pub const GameObjectWorldPlugin = struct {
         for (self.objects.items) |*o| {
             o.destroy();
         }
+        self.objects.clearRetainingCapacity();
+        self.objectsToDestroy.clearRetainingCapacity();
     }
 
     pub fn getTypeId() utils.TypeId {
