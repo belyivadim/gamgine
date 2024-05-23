@@ -38,7 +38,7 @@ pub const SceneManager = struct {
 
 
     scenes: std.StringArrayHashMap(Scene),
-    active_scene: ?*Scene,
+    active_scene_name: ?[:0]const u8,
 
     pub fn make(app: *const gg.GamgineApp) error{OutOfMemory}!*gg.IService {
         var service: *Self = try app.gpa.create(Self);
@@ -50,7 +50,7 @@ pub const SceneManager = struct {
 
         // Initialize all internal fields here 
         service.scenes = std.StringArrayHashMap(Scene).init(app.gpa);
-        service.active_scene = null;
+        service.active_scene_name = null;
         
         // If dependecies from GamgineApp is needed
         // Save GamgineApp as a struct field and query any plugin you need
@@ -87,11 +87,16 @@ pub const SceneManager = struct {
     pub fn loadScene(self: *Self, scene_name: [:0]const u8) void {
         var maybe_scene = self.scenes.get(scene_name);
         if (maybe_scene) |*scene| {
-            if (self.active_scene) |active_scene| {
-                active_scene.unload(self.app);
+            if (self.active_scene_name) |active_name| {
+                var maybe_active_scene = self.scenes.get(active_name);
+                if (maybe_active_scene) |*active_scene| {
+                    active_scene.unload(self.app);
+                } else {
+                    self.app.logger.core_log(log.LogLevel.err, "Scene manager could not find active scene \"{s}\"", .{active_name});
+                }
             }
             scene.load(self.app);
-            self.active_scene = scene;
+            self.active_scene_name = scene_name;
         } else {
             self.app.logger.core_log(log.LogLevel.err, "Scene manager could not load the scene \"{s}\", because it was not added.",
                 .{scene_name});
