@@ -1,6 +1,6 @@
-const test_game = @import("games/test/entry.zig");
+const game = @import("games/flappy_bird/entry.zig");
 
 pub fn main() !void {
-    try test_game.entry();
+    try game.entry();
 }
 
