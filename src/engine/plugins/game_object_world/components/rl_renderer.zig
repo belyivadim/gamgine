@@ -75,6 +75,17 @@ pub const Renderer2d = struct {
         }
     }
 
+    pub fn getTextureImage(self: *const Self) rl.Image {
+        return rl.LoadImageFromTexture(self.texture);
+    }
+
+    pub fn updateTexture(self: *Self, image: rl.Image) void {
+        std.debug.assert(self.texture.width == image.width);
+        std.debug.assert(self.texture.height == image.height);
+
+        rl.UpdateTexture(self.texture, image.data);
+    }
+
 
     pub fn createBlankTextureWithColor(color: rl.Color, width: i32, height: i32, allocator: std.mem.Allocator) ?rl.Texture {
         const pixels = allocator.alloc(rl.Color, @intCast(width * height)) catch {
