@@ -9,28 +9,31 @@ const utils = @import("../../core/utils.zig");
 pub const GameObject = struct {
     const Self = @This();
 
+    pub const max_name_length = 255;
+    
     id: usize,
+    name: [max_name_length + 1]u8, // cstr
     is_active: bool,
     components: std.ArrayList(*IComponent),
     allocator: std.mem.Allocator,
     app: *const gg.GamgineApp,
 
-    pub fn createPrefab(allocator: std.mem.Allocator, app: *const gg.GamgineApp) Self {
-        return create(allocator, app);
-    }
-
-    pub fn destroyPrefab(self: *Self) void {
-        self.destroy();
-    }
-
-    fn create(allocator: std.mem.Allocator, app: *const gg.GamgineApp) Self {
-        return Self{
+    fn create(name: []const u8, allocator: std.mem.Allocator, app: *const gg.GamgineApp) Self {
+        var go = Self{
             .id = 0, // TODO: assign unique id
+            .name = std.mem.zeroes([max_name_length + 1]u8),
             .is_active = true,
             .components = std.ArrayList(*IComponent).init(allocator),
             .allocator = allocator,
             .app = app,
         };
+
+
+        const copy_len = if (name.len <= max_name_length) name.len else max_name_length;
+        std.mem.copyForwards(u8, &go.name, name[0..copy_len]);
+        go.name[copy_len] = 0;
+
+        return go;
     }
 
     fn destroy(self: *Self) void {
@@ -54,6 +57,11 @@ pub const GameObject = struct {
         }
     }
 
+    pub fn nameSlice(self: *const Self) []const u8 {
+        const len = std.mem.len(@as([*:0]const u8, @ptrCast(&self.name)));
+        return self.name[0..len];
+    }
+
     pub fn setActive(self: *Self, active: bool) void {
         self.is_active = active;
 
@@ -63,7 +71,7 @@ pub const GameObject = struct {
     }
 
     pub fn clone(self: *const Self, world: *GameObjectWorldPlugin) ?*GameObject {
-        const maybe_cloned_go = world.newObject();
+        const maybe_cloned_go = world.newObject(self.nameSlice());
 
         if (maybe_cloned_go) |cloned_go| {
             for (self.components.items) |comp| {
@@ -128,6 +136,9 @@ pub const GameObjectWorldPlugin = struct {
 
     objects: std.ArrayList(GameObject),
     objectsToDestroy: std.ArrayList(*const GameObject),
+
+    prefabs: std.StringArrayHashMap(GameObject), // TODO: maybe use just HashMap ?
+
     allocator: std.mem.Allocator,
     app: *const gg.GamgineApp,
 
@@ -140,14 +151,15 @@ pub const GameObjectWorldPlugin = struct {
         world.iplugin.getTypeIdFn = getTypeId;
         world.objects = std.ArrayList(GameObject).init(app.gpa);
         world.objectsToDestroy = std.ArrayList(*const GameObject).init(app.gpa);
+        world.prefabs = std.StringArrayHashMap(GameObject).init(app.gpa);
         world.allocator = app.gpa;
         world.app = app;
 
         return &world.iplugin;
     }
 
-    pub fn newObject(self: *Self) ?*GameObject {
-        self.objects.append(GameObject.create(self.allocator, self.app)) catch |err| {
+    pub fn newObject(self: *Self, name: []const u8) ?*GameObject {
+        self.objects.append(GameObject.create(name, self.allocator, self.app)) catch |err| {
             self.app.logger.core_log(log.LogLevel.err, "Could not create game object: {any}", .{err});
             return null;
         };
@@ -159,6 +171,25 @@ pub const GameObjectWorldPlugin = struct {
         self.objectsToDestroy.append(game_object) catch |err| {
             self.app.logger.core_log(log.LogLevel.err, "Could not schedule destruction of object {any}", .{err});
         }; 
+    }
+
+    pub fn createPrefab(self: *Self, name: []const u8) ?*GameObject {
+        if (self.getPrefab(name) != null) return null;
+
+        self.prefabs.put(name, GameObject.create(name, self.allocator, self.app)) catch |err| {
+            self.app.logger.core_log(log.LogLevel.err, "Could not create prefab {s}: {any}", .{name, err});
+            return null;
+        };
+
+        return self.getPrefab(name);
+    }
+
+    pub fn getPrefab(self: *Self, name: []const u8) ?*GameObject {
+        return self.prefabs.getPtr(name);
+    }
+
+    pub fn destroyPrefab(self: *Self, name: []const u8) void {
+        _ = self.prefabs.swapRemove(name);
     }
 
     fn startUp(_: *gg.IPlugin) void {
@@ -191,6 +222,7 @@ pub const GameObjectWorldPlugin = struct {
         }
         self.objects.deinit();
         self.objectsToDestroy.deinit();
+        self.prefabs.deinit();
         self.allocator.destroy(self);
     }
 
