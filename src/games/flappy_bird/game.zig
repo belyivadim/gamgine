@@ -186,15 +186,20 @@ pub const GamePlugin = struct {
         var game = app.queryPlugin(GamePlugin) orelse unreachable;
 
         _ = game.createPlayer(scene.world, app);
-        _ = game.createPipeSpawner(scene.world, app, 2, 400);
+
+        const pipes_speed: f32 = 400;
+        _ = game.createPipeSpawner(scene.world, app, 2, pipes_speed);
         _ = game.createScoreText(scene.world, app);
 
+        const bg_speed: f32 = 200;
+        _ = game.createBackgroundSpawner(bg_speed);
+        
         const renderer = app.queryPlugin(RendererPlugin) orelse unreachable;
         renderer.main_camera = scene.main_camera;
 
         scene.world.startWorld();
     }
-
+    
     fn getOrLoadBlankTextureAsset(
         name: []const u8, 
         color: rl.Color, 
@@ -284,7 +289,7 @@ pub const GamePlugin = struct {
 
         const score_prefab = self.createScorePrefab("Score Prefab", move_speed);
 
-        _ = spawner.addComponent(Spawner, Spawner.create(interval, top_pipe_prefab, bottom_pipe_prefab, score_prefab, self.gap_height));
+        _ = spawner.addComponent(PipeSpawner, PipeSpawner.create(interval, top_pipe_prefab, bottom_pipe_prefab, score_prefab, self.gap_height));
 
         return spawner;
     }
@@ -297,7 +302,7 @@ pub const GamePlugin = struct {
 
         _ = prefab 
             .addComponent(Transform2d, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(AutoMover, AutoMover.create(move_speed, rl.Vector2{.x = -1, .y = 0}))
+            .addComponent(AutoMover, AutoMover.create(move_speed, rl.Vector2{.x = -1, .y = 0}, self.pipe_width))
             .addComponent(Collider, Collider.create(self.pipe_width, self.gap_height, ColliderTag.gap));
 
         return prefab;
@@ -316,18 +321,135 @@ pub const GamePlugin = struct {
 
         _ = prefab 
             .addComponent(Transform2d, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(AutoMover, AutoMover.create(move_speed, rl.Vector2{.x = -1, .y = 0}))
+            .addComponent(AutoMover, AutoMover.create(move_speed, rl.Vector2{.x = -1, .y = 0}, self.pipe_width))
             .addComponent(Collider, Collider.create(self.pipe_width, self.pipe_height, ColliderTag.pipe))
             .addComponent(Renderer2d, Renderer2d.create(texture_asset, 0));
 
 
         return prefab;
     }
+
+    fn createBackgroundSpawner(self: *Self, move_speed: f32) *gow.GameObject {
+        const spawner = self.world.newObject("Backgound Spawner") orelse unreachable;
+
+        const background_path = Self.cwd ++ "resources/assets/sprites/background_orange.png";
+        const background_texture_asset =
+            assets.TextureAsset.getOrLoadResizedHeight( // resize only by height since it is square texture
+                background_path, 
+                self.app.window_config.height
+            ) orelse unreachable;
+
+        const bg_width = background_texture_asset.texture.width;
+
+        const bg = self.createBackgroundPrefab("Background", rl.Vector2Zero(), background_texture_asset);
+
+        _ = spawner.addComponent(
+            BackgroundSpawner,
+            BackgroundSpawner.create(bg, bg_width, move_speed, -1)
+        );
+
+        return spawner;
+    }
+
+    fn createBackgroundPrefab(
+        self: *Self, 
+        name: []const u8, 
+        position: rl.Vector2, 
+        texture_asset: *assets.TextureAsset,
+    ) *gow.GameObject {
+        const maybe_prefab = self.world.getPrefab(name);
+        if (maybe_prefab) |prefab| return prefab;
+
+        const prefab = self.world.createPrefab(name) orelse unreachable;
+
+        _ = prefab
+            .addComponent(Transform2d, Transform2d.create(position, 0, rl.Vector2{.x = 1, .y = 1}))
+            .addComponent(Renderer2d, Renderer2d.create(texture_asset, -10));
+
+        return prefab;
+    }
 };
 
 
+const BackgroundSpawner = struct {
+    const Self = @This();
 
-const Spawner = struct {
+    world: *gow.GameObjectWorldPlugin,
+    prefab: *const gow.GameObject,
+    object_width: i32,
+    move_speed: f32,
+    x_dir: f32,
+
+    transforms: [3]*Transform2d,
+    spawned: [3]*gow.GameObject,
+
+    pub fn create(prefab: *const gow.GameObject, object_width: i32, move_speed: f32, x_dir: f32) Self { 
+        return Self{
+            .world = undefined,
+            .prefab = prefab,
+            .object_width = object_width,
+            .move_speed = move_speed,
+            .x_dir = x_dir,
+            .transforms = undefined,
+            .spawned = undefined,
+        };
+    }
+
+    pub fn start(self: *Self, owner: *gow.GameObject) void {
+        self.world = owner.app.queryPlugin(gow.GameObjectWorldPlugin) orelse unreachable;
+
+        for (0..self.transforms.len) |i| {
+            const bg = self.spawn();
+            var transform = bg.getComponentDataMut(Transform2d) orelse unreachable;
+            transform.position.x = @floatFromInt(self.object_width * @as(i32, @intCast(i)));
+            self.transforms[i] = transform;
+            self.spawned[i] = bg;
+        }
+    }
+
+    pub fn update(self: *Self, dt: f32, _: *gow.GameObject) void {
+        for (0..self.transforms.len) |i| {
+            self.transforms[i].translate(
+                rl.Vector2{
+                    .x = self.x_dir * self.move_speed * dt, 
+                    .y = 0
+                }
+            );
+        }
+
+        const max_x = self.transforms[0].position.x + @as(f32, @floatFromInt(self.object_width));
+        if (max_x <= 0) {
+            const bg = self.spawned[0];
+            const transform = self.transforms[0];
+
+            for (1..self.spawned.len) |i| {
+                self.spawned[i-1] = self.spawned[i];
+                self.transforms[i-1] = self.transforms[i];
+            }
+
+            transform.position.x += @as(f32, @floatFromInt(self.object_width)) * 3;
+            self.transforms[2] = transform;
+            self.spawned[2] = bg;
+        }
+    }
+
+    pub fn destroy(_: *Self, _: *gow.GameObject) void {
+    }
+
+    pub fn clone(self: *const Self) Self {
+        return BackgroundSpawner.create(self.prefab, self.object_width, self.move_speed, self.x_dir);
+    }
+
+    pub fn setActive(_: *Self, _: bool) void {
+    }
+
+    fn spawn(self: *Self) *gow.GameObject {
+        return self.prefab.clone(self.world) orelse unreachable;
+    }
+};
+
+
+const PipeSpawner = struct {
     const Self = @This();
 
     cooldown: f32,
@@ -375,7 +497,7 @@ const Spawner = struct {
     }
 
     pub fn clone(self: *const Self) Self {
-        return Spawner.create(self.interval, self.top_pipe_prefab, self.bottom_pipe_prefab, self.score_prefab, self.gap_height);
+        return PipeSpawner.create(self.interval, self.top_pipe_prefab, self.bottom_pipe_prefab, self.score_prefab, self.gap_height);
     }
 
     pub fn setActive(_: *Self, _: bool) void {
@@ -433,14 +555,16 @@ const AutoMover = struct {
     speed: f32,
     direction: rl.Vector2,
     transform: *Transform2d,
+    object_width: f32,
 
     world: *gow.GameObjectWorldPlugin,
 
-    pub fn create(speed: f32, direction: rl.Vector2) Self { 
+    pub fn create(speed: f32, direction: rl.Vector2, object_width: f32) Self { 
         return Self{
             .speed = speed,
             .direction = direction,
             .transform = undefined,
+            .object_width = object_width,
             .world = undefined,
         };
     }
@@ -458,7 +582,7 @@ const AutoMover = struct {
             }
         );
 
-        if (self.transform.position.x < -75) {
+        if (self.transform.position.x < -self.object_width) {
             self.world.destroyObject(owner);
         }
     }
@@ -468,7 +592,7 @@ const AutoMover = struct {
 
 
     pub fn clone(self: *const Self) Self {
-        return AutoMover.create(self.speed, self.direction);
+        return AutoMover.create(self.speed, self.direction, self.object_width);
     }
 
     pub fn setActive(_: *Self, _: bool) void {
