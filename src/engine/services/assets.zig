@@ -119,4 +119,34 @@ pub const TextureAsset = struct {
 
         return false;
     }
+
+
+    pub fn loadBlankTextureWithColor(
+        name: []const u8, 
+        color: rl.Color, 
+        width: i32, height: i32, 
+        allocator: std.mem.Allocator
+    ) ?*Self {
+        if (Self.alreadyLoaded(name)) {
+            return null;
+        }
+
+        const pixels = allocator.alloc(rl.Color, @intCast(width * height)) catch {
+            return null;
+        };
+        defer allocator.free(pixels);
+        @memset(pixels, color);
+
+        const img = rl.Image{
+            .data = @ptrCast(pixels),
+            .width = width,
+            .height = height,
+            .mipmaps = 1,
+            .format = rl.PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
+        };
+
+        const texture = rl.LoadTextureFromImage(img);
+
+        return Self.loadFromMemoryForced(texture, name);
+    }
 };

@@ -4,7 +4,7 @@ const log = @import("../../../core/log.zig");
 const gow = @import("../game_object_world.zig");
 const Transform2d = @import("rl_transform.zig").Transform2d;
 const RendererPlugin = @import("../rl_renderer.zig").RlRendererPlugin;
-const TextureAsset = @import("../../../services/asset_manager.zig").TextureAsset;
+const TextureAsset = @import("../../../services/assets.zig").TextureAsset;
 
 pub const Renderer2d = struct {
     const Self = @This();
@@ -75,24 +75,6 @@ pub const Renderer2d = struct {
 
     pub fn getTextureImage(self: *const Self) rl.Image {
         return rl.LoadImageFromTexture(self.texture_asset.texture);
-    }
-
-    pub fn createBlankTextureWithColor(color: rl.Color, width: i32, height: i32, allocator: std.mem.Allocator) ?rl.Texture {
-        const pixels = allocator.alloc(rl.Color, @intCast(width * height)) catch {
-            return null;
-        };
-        defer allocator.free(pixels);
-        @memset(pixels, color);
-
-        const img = rl.Image{
-            .data = @ptrCast(pixels),
-            .width = width,
-            .height = height,
-            .mipmaps = 1,
-            .format = rl.PIXELFORMAT_UNCOMPRESSED_R8G8B8A8,
-        };
-
-        return rl.LoadTextureFromImage(img);
     }
 };
 

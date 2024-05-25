@@ -5,7 +5,7 @@ const renderer = @import("../../engine/plugins/game_object_world/rl_renderer.zig
 const gow = @import("../../engine/plugins/game_object_world/game_object_world.zig");
 const InputPlugin = @import("../../engine/plugins/inputs/rl_input.zig").InputPlugin;
 const SceneManager = @import("../../engine/services/scenes/scene_manager_gow.zig").SceneManager;
-const AssetManager = @import("../../engine/services/asset_manager.zig").AssetManager;
+const AssetManager = @import("../../engine/services/assets.zig").AssetManager;
 const game = @import("game.zig");
 
 pub fn entry() !void {

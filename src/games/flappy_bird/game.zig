@@ -11,7 +11,7 @@ const Scene = @import("../../engine/services/scenes/scene_manager_gow.zig").Scen
 const log = @import("../../engine/core/log.zig");
 const InputPlugin = @import("../../engine/plugins/inputs/rl_input.zig").InputPlugin;
 const Key = @import("../../engine/plugins/inputs/rl_input.zig").KeyboardKey;
-const assets = @import("../../engine/services/asset_manager.zig");
+const assets = @import("../../engine/services/assets.zig");
 
 
 pub const GamePlugin = struct {
@@ -200,10 +200,8 @@ pub const GamePlugin = struct {
         allocator: std.mem.Allocator
     ) *assets.TextureAsset {
         const asset = assets.AssetManager.getAsset(assets.TextureAsset, name) 
-            orelse assets.TextureAsset.loadFromMemory(
-                Renderer2d.createBlankTextureWithColor(color, width, height, allocator) orelse unreachable, 
-                name
-            ) orelse unreachable;
+            orelse assets.TextureAsset.loadBlankTextureWithColor(name, color, width, height, allocator) 
+            orelse unreachable;
 
         // log.Logger.app_log(log.LogLevel.info, "asset {s} has id {d}", .{name, asset.texture.id});
 
