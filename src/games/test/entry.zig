@@ -1,6 +1,6 @@
 const std = @import("std");
 const gg = @import("../../engine/core/gamgine.zig");
-const LogLevel = @import("../../engine/core/log.zig").LogLevel;
+const log = @import("../../engine/core/log.zig");
 const renderer = @import("../../engine/plugins/game_object_world/rl_renderer.zig");
 const gow = @import("../../engine/plugins/game_object_world/game_object_world.zig");
 const InputPlugin = @import("../../engine/plugins/inputs/rl_input.zig").InputPlugin;
@@ -20,7 +20,7 @@ pub fn entry() !void {
        .addPlugin(renderer.RlRendererPlugin.make);
 
     if (gamgine.any_building_error_occured) {
-        gamgine.logger.app_log(LogLevel.fatal, "Could not build the application!", .{});
+        log.logger.app_log(log.LogLevel.fatal, "Could not build the application!", .{});
         return error.Oops;
     }
 

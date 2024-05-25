@@ -80,7 +80,7 @@ pub const SceneManager = struct {
 
     pub fn addScene(self: *Self, scene: Scene) void {
         self.scenes.put(scene.name, scene) catch |err| {
-            self.app.logger.core_log(log.LogLevel.err, "Scene manager could not add the scene: {any}.", .{err});
+            log.Logger.core_log(log.LogLevel.err, "Scene manager could not add the scene: {any}.", .{err});
         };
     }
 
@@ -92,13 +92,13 @@ pub const SceneManager = struct {
                 if (maybe_active_scene) |*active_scene| {
                     active_scene.unload(self.app);
                 } else {
-                    self.app.logger.core_log(log.LogLevel.err, "Scene manager could not find active scene \"{s}\"", .{active_name});
+                    log.Logger.core_log(log.LogLevel.err, "Scene manager could not find active scene \"{s}\"", .{active_name});
                 }
             }
             scene.load(self.app);
             self.active_scene_name = scene_name;
         } else {
-            self.app.logger.core_log(log.LogLevel.err, "Scene manager could not load the scene \"{s}\", because it was not added.",
+            log.Logger.core_log(log.LogLevel.err, "Scene manager could not load the scene \"{s}\", because it was not added.",
                 .{scene_name});
         }
     }

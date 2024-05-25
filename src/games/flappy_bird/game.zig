@@ -172,13 +172,13 @@ pub const GamePlugin = struct {
     }
 
     fn unloadMainScene(_: *Scene, app: *const gg.GamgineApp) void {
-        app.logger.app_log(log.LogLevel.info, "Unloading Main Scene", .{});
+        log.Logger.app_log(log.LogLevel.info, "Unloading Main Scene", .{});
         var world = app.queryPlugin(gow.GameObjectWorldPlugin) orelse unreachable;
         world.clean();
     }
 
     fn loadMainScene(scene: *Scene, app: *const gg.GamgineApp) void {
-        app.logger.app_log(log.LogLevel.info, "Loading Main Scene", .{});
+        log.Logger.app_log(log.LogLevel.info, "Loading Main Scene", .{});
 
         var game = app.queryPlugin(GamePlugin) orelse unreachable;
 

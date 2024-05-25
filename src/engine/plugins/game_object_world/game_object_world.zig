@@ -78,7 +78,7 @@ pub const GameObject = struct {
                 const maybe_cloned_icomp = comp.clone(self.allocator);
                 if (maybe_cloned_icomp) |cloned_icomp| {
                     cloned_go.components.append(cloned_icomp) catch |err| {
-                        self.app.logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
+                        log.Logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
                         cloned_icomp.destroy(cloned_go);
                         continue;
                     };
@@ -99,12 +99,12 @@ pub const GameObject = struct {
         component_data: CompDataT,
     ) *Self {
         const component = Component(CompDataT).make(component_data, self.allocator) orelse {
-            self.app.logger.core_log(log.LogLevel.err, "Could not create component.", .{});
+            log.Logger.core_log(log.LogLevel.err, "Could not create component.", .{});
             return self;
         };
 
         self.components.append(&component.icomponent) catch |err| {
-            self.app.logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
+            log.Logger.core_log(log.LogLevel.err, "Could not add component to the game object: {any}", .{err});
             self.allocator.destroy(component);
             return self;
         };
@@ -160,7 +160,7 @@ pub const GameObjectWorldPlugin = struct {
 
     pub fn newObject(self: *Self, name: []const u8) ?*GameObject {
         self.objects.append(GameObject.create(name, self.allocator, self.app)) catch |err| {
-            self.app.logger.core_log(log.LogLevel.err, "Could not create game object: {any}", .{err});
+            log.Logger.core_log(log.LogLevel.err, "Could not create game object: {any}", .{err});
             return null;
         };
 
@@ -169,7 +169,7 @@ pub const GameObjectWorldPlugin = struct {
 
     pub fn destroyObject(self: *Self, game_object: *GameObject) void {
         self.objectsToDestroy.append(game_object) catch |err| {
-            self.app.logger.core_log(log.LogLevel.err, "Could not schedule destruction of object {any}", .{err});
+            log.Logger.core_log(log.LogLevel.err, "Could not schedule destruction of object {any}", .{err});
         }; 
     }
 
@@ -177,7 +177,7 @@ pub const GameObjectWorldPlugin = struct {
         if (self.getPrefab(name) != null) return null;
 
         self.prefabs.put(name, GameObject.create(name, self.allocator, self.app)) catch |err| {
-            self.app.logger.core_log(log.LogLevel.err, "Could not create prefab {s}: {any}", .{name, err});
+            log.Logger.core_log(log.LogLevel.err, "Could not create prefab {s}: {any}", .{name, err});
             return null;
         };
 

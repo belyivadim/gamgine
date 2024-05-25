@@ -10,7 +10,6 @@ pub const GamgineApp = struct {
     pub const QueryPlugin = *const fn (*const Self, comptime type) ?*type;
 
     appname: [:0]const u8,
-    logger: Logger,
     window_config: WindowConfig,
     
     // allocators
@@ -169,7 +168,6 @@ pub const Gamgine = struct {
 
     appname: [:0]const u8,
     window_config: WindowConfig,
-    logger: Logger = Logger{},
 
     // allocators
     gpa: std.mem.Allocator = std.heap.page_allocator,
@@ -195,7 +193,7 @@ pub const Gamgine = struct {
 
     // Building funcitons
     pub fn build(self: *Self) !*GamgineApp {
-        self.logger.core_log(LogLevel.info, "GAMEGINE: Building the application \"{s}\"", .{self.appname});
+        Logger.core_log(LogLevel.info, "GAMEGINE: Building the application \"{s}\"", .{self.appname});
 
         //const render_queue = self.render_queue orelse std.ArrayList(RenderCallback(GameStateT)).init(self.gpa);
 
@@ -213,7 +211,6 @@ pub const Gamgine = struct {
 
         self.app = GamgineApp{
             .appname = self.appname,
-            .logger = self.logger,
             .window_config = self.window_config,
             .gpa = self.gpa,
             .frame_allocator = self.frame_allocator,
@@ -222,7 +219,7 @@ pub const Gamgine = struct {
         };
 
         if (self.service_creators) |creators| {
-            self.logger.core_log(LogLevel.info, "GAMEGINE: Initializing Services.\n", .{});
+            Logger.core_log(LogLevel.info, "GAMEGINE: Initializing Services.\n", .{});
             for (creators.items) |c| {
                 const service = try c(&self.app);
                 try self.app.services.append(service);
@@ -230,13 +227,13 @@ pub const Gamgine = struct {
         }
 
         if (self.plugin_creators) |creators| {
-            self.logger.core_log(LogLevel.info, "GAMEGINE: Initializing plugins.\n", .{});
+            Logger.core_log(LogLevel.info, "GAMEGINE: Initializing plugins.\n", .{});
             for (creators.items) |c| {
                 const plugin = try c(&self.app);
                 try self.app.plugins.append(plugin);
             }
         } else {
-            self.logger.core_log(LogLevel.warning, "GAMEGINE: No plugins were added to the application!\n", .{});
+            Logger.core_log(LogLevel.warning, "GAMEGINE: No plugins were added to the application!\n", .{});
         }
 
 
@@ -261,7 +258,7 @@ pub const Gamgine = struct {
         err_message: [:0]const u8,
     ) void {
         arr.append(elem) catch |err| {
-            self.logger.core_log(LogLevel.err, "GAMEGINE: {s}: {any}", .{err_message, err});
+            Logger.core_log(LogLevel.err, "GAMEGINE: {s}: {any}", .{err_message, err});
             self.any_building_error_occured = true;
         };
     }

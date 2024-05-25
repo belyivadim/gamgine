@@ -30,7 +30,7 @@ pub const Renderer2d = struct {
         if (maybe_transform) |t| {
             self.transform = t;
         } else {
-            owner.app.logger.
+            log.Logger.
                 core_log(log.LogLevel.warning, 
                     "Object {d} has Renderer2d Component without a Transform2d Component, by default it will be rendered at position (0,0).", 
                     .{owner.id});
@@ -38,7 +38,7 @@ pub const Renderer2d = struct {
 
 
         self.renderer_plugin = owner.app.queryPlugin(RendererPlugin) orelse {
-            owner.app.logger.core_log(log.LogLevel.fatal, 
+            log.Logger.core_log(log.LogLevel.fatal, 
                 "RlRendererPlugin is required for rl_renderer.Renderer2d to work. Shutting down.", .{});
             std.process.exit(1);
         };

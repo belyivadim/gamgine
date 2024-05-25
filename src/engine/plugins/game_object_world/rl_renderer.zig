@@ -45,7 +45,7 @@ pub const RlRendererPlugin = struct {
         var self: *Self = @fieldParentPtr("iplugin", iplugin);
 
         self.world = self.app.queryPlugin(gow.GameObjectWorldPlugin) orelse {
-            self.app.logger.core_log(log.LogLevel.fatal, 
+            log.Logger.core_log(log.LogLevel.fatal, 
                 "RlRendererPlugin from game_object_world cannot work without GameObjectWorldPlugin. Shutting down.", .{});
             std.process.exit(1);
         };
@@ -84,7 +84,7 @@ pub const RlRendererPlugin = struct {
             if (self.render_queue.items[i].layer > renderer2d.layer) {
                 const index = if (i == 0) 0 else i - 1;
                 self.render_queue.insert(index, renderer2d) catch |err| {
-                    self.app.logger.core_log(log.LogLevel.err, "RlRendererPlugin could not add renderer component to the queue: {any}", .{err});
+                    log.Logger.core_log(log.LogLevel.err, "RlRendererPlugin could not add renderer component to the queue: {any}", .{err});
                     return;
                 };
                 return;
@@ -93,7 +93,7 @@ pub const RlRendererPlugin = struct {
 
         // all elements are on layers below, append to the end
         self.render_queue.append(renderer2d) catch |err| {
-            self.app.logger.core_log(log.LogLevel.err, "RlRendererPlugin could not add renderer component to the queue: {any}", .{err});
+            log.Logger.core_log(log.LogLevel.err, "RlRendererPlugin could not add renderer component to the queue: {any}", .{err});
             return;
         };
     }

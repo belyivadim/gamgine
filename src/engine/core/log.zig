@@ -32,29 +32,27 @@ pub const LogLevel = enum(i32) {
 pub const Logger = struct {
     const Self = @This();
 
-    log_level: LogLevel = LogLevel.info,
+    var log_level: LogLevel = LogLevel.info;
 
     pub fn app_log(
-        self: *const Self, 
-        comptime log_level: LogLevel, 
+        comptime level: LogLevel, 
         comptime fmt: [:0]const u8, 
         args: anytype
     ) void {
-        if (log_level.lessThan(self.log_level)) return;
+        if (level.lessThan(Self.log_level)) return;
 
-        const level_str = comptime log_level.to_string();
+        const level_str = comptime level.to_string();
         std.debug.print("APP:" ++ level_str ++ ": " ++ fmt ++ "\n", args);
     }
 
     pub fn core_log(
-        self: *const Self, 
-        comptime log_level: LogLevel, 
+        comptime level: LogLevel, 
         comptime fmt: [:0]const u8, 
         args: anytype
     ) void {
-        if (log_level.lessThan(self.log_level)) return;
+        if (level.lessThan(Self.log_level)) return;
 
-        const level_str = comptime log_level.to_string();
+        const level_str = comptime level.to_string();
         std.debug.print("CORE:" ++ level_str ++ ": " ++ fmt ++ "\n", args);
     }
 };
