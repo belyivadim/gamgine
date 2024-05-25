@@ -17,6 +17,8 @@ const assets = @import("../../engine/services/assets.zig");
 pub const GamePlugin = struct {
     const Self = @This();
 
+    const cwd = "src/games/flappy_bird/";
+
     // Do not change the name of `iplugin` variable
     iplugin: gg.IPlugin,
 
@@ -203,8 +205,6 @@ pub const GamePlugin = struct {
             orelse assets.TextureAsset.loadBlankTextureWithColor(name, color, width, height, allocator) 
             orelse unreachable;
 
-        // log.Logger.app_log(log.LogLevel.info, "asset {s} has id {d}", .{name, asset.texture.id});
-
         return asset;
     }
 
@@ -230,8 +230,13 @@ pub const GamePlugin = struct {
     fn createPlayer(self: *Self, world: *gow.GameObjectWorldPlugin, app: *const gg.GamgineApp) *gow.GameObject {
         const player = world.newObject("Player") orelse unreachable;
 
+        _ = app;
         const side_int: i32 = @intFromFloat(self.bird_side);
-        const player_texture_asset = getOrLoadBlankTextureAsset("Player", rl.RED, side_int, side_int, app.gpa);
+        // const player_texture_asset = getOrLoadBlankTextureAsset("Player", rl.RED, side_int, side_int, app.gpa);
+
+
+        const texture_path = Self.cwd ++ "resources/assets/sprites/bird.png";
+        const player_texture_asset = assets.TextureAsset.getOrLoadResized(texture_path, side_int, side_int) orelse unreachable;
 
         _ = player
             .addComponent(CharacterController, CharacterController.create(750))
@@ -253,23 +258,28 @@ pub const GamePlugin = struct {
     ) *gow.GameObject {
         const spawner = world.newObject("Pipe Spawner") orelse unreachable;
 
-        const top_pipe_texture_asset = getOrLoadBlankTextureAsset(
-            "Top Pipe Texture", 
-            rl.GREEN,
-            @intFromFloat(self.pipe_width), 
-            @intFromFloat(self.pipe_height), 
-            app.gpa
-        );
+        // const top_pipe_texture_asset = getOrLoadBlankTextureAsset(
+        //     "Top Pipe Texture", 
+        //     rl.GREEN,
+        //     @intFromFloat(self.pipe_width), 
+        //     @intFromFloat(self.pipe_height), 
+        //     app.gpa
+        // );
 
-        const bottom_pipe_texture_asset = getOrLoadBlankTextureAsset(
-            "Bottom Pipe Texture", 
-            rl.LIME,
-            @intFromFloat(self.pipe_width), 
-            @intFromFloat(self.pipe_height), 
-            app.gpa
-        );
+        //const bottom_pipe_texture_asset = getOrLoadBlankTextureAsset(
+        //    "Bottom Pipe Texture", 
+        //    rl.LIME,
+        //    @intFromFloat(self.pipe_width), 
+        //    @intFromFloat(self.pipe_height), 
+        //    app.gpa
+        //);
 
-        const top_pipe_prefab = self.createPipePrefab("Top Pipe Prefab", move_speed, top_pipe_texture_asset);
+        _ = app;
+        const bottom_texture_path = Self.cwd ++ "resources/assets/sprites/pipe_bottom.png";
+        const bottom_pipe_texture_asset =
+            assets.TextureAsset.getOrLoadResized(bottom_texture_path, @intFromFloat(self.pipe_width), @intFromFloat(self.pipe_height)) orelse unreachable;
+
+        const top_pipe_prefab = self.createPipePrefab("Top Pipe Prefab", move_speed, bottom_pipe_texture_asset);
         const bottom_pipe_prefab = self.createPipePrefab("Bottom Pipe Prefab", move_speed, bottom_pipe_texture_asset);
 
         const score_prefab = self.createScorePrefab("Score Prefab", move_speed);
