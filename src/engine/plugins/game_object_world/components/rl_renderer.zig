@@ -4,20 +4,21 @@ const log = @import("../../../core/log.zig");
 const gow = @import("../game_object_world.zig");
 const Transform2d = @import("rl_transform.zig").Transform2d;
 const RendererPlugin = @import("../rl_renderer.zig").RlRendererPlugin;
+const TextureAsset = @import("../../../services/asset_manager.zig").TextureAsset;
 
 pub const Renderer2d = struct {
     const Self = @This();
 
-    texture: rl.Texture,
+    texture_asset: *TextureAsset,
     layer: i32,
     transform: *const Transform2d,
     renderer_plugin: *RendererPlugin,
 
     is_active: bool,
 
-    pub fn create(texture: rl.Texture, layer: i32) Self { 
+    pub fn create(texture_asset: *TextureAsset, layer: i32) Self { 
         return Self{
-            .texture = texture,
+            .texture_asset = texture_asset,
             .transform = &Transform2d.Empty,
             .layer = layer,
             .renderer_plugin = undefined,
@@ -54,13 +55,10 @@ pub const Renderer2d = struct {
 
     pub fn destroy(self: *Self, _: *gow.GameObject) void {
         self.renderer_plugin.removeRenderer2d(self);
-        rl.UnloadTexture(self.texture);
     }
 
-
     pub fn clone(self: *const Self) Self {
-        const new_texture = rl.LoadTextureFromImage(rl.LoadImageFromTexture(self.texture));
-        return Renderer2d.create(new_texture, self.layer);
+        return Renderer2d.create(self.texture_asset, self.layer);
     }
 
     pub fn setActive(self: *Self, active: bool) void {
@@ -76,16 +74,8 @@ pub const Renderer2d = struct {
     }
 
     pub fn getTextureImage(self: *const Self) rl.Image {
-        return rl.LoadImageFromTexture(self.texture);
+        return rl.LoadImageFromTexture(self.texture_asset.texture);
     }
-
-    pub fn updateTexture(self: *Self, image: rl.Image) void {
-        std.debug.assert(self.texture.width == image.width);
-        std.debug.assert(self.texture.height == image.height);
-
-        rl.UpdateTexture(self.texture, image.data);
-    }
-
 
     pub fn createBlankTextureWithColor(color: rl.Color, width: i32, height: i32, allocator: std.mem.Allocator) ?rl.Texture {
         const pixels = allocator.alloc(rl.Color, @intCast(width * height)) catch {

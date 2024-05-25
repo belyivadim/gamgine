@@ -11,6 +11,7 @@ const Scene = @import("../../engine/services/scenes/scene_manager_gow.zig").Scen
 const log = @import("../../engine/core/log.zig");
 const InputPlugin = @import("../../engine/plugins/inputs/rl_input.zig").InputPlugin;
 const Key = @import("../../engine/plugins/inputs/rl_input.zig").KeyboardKey;
+const assets = @import("../../engine/services/asset_manager.zig");
 
 
 pub const GamePlugin = struct {
@@ -149,7 +150,7 @@ pub const GamePlugin = struct {
         var score_img = self.score_renderer.getTextureImage();
         rl.ImageClearBackground(&score_img, rl.BLANK);
         rl.ImageDrawText(&score_img, score_str, @divFloor(score_img.width, 2) - half_text_width, 0, self.score_font_size, rl.GOLD);
-        self.score_renderer.updateTexture(score_img);
+        self.score_renderer.texture_asset.updateFromImage(score_img);
     }
 
     fn tearDown(iplugin: *gg.IPlugin) void {
@@ -182,9 +183,9 @@ pub const GamePlugin = struct {
 
         var game = app.queryPlugin(GamePlugin) orelse unreachable;
 
-        _ = game.createPlayer(scene.world);
+        _ = game.createPlayer(scene.world, app);
         _ = game.createPipeSpawner(scene.world, app, 2, 400);
-        _ = game.createScoreText(scene.world);
+        _ = game.createScoreText(scene.world, app);
 
         const renderer = app.queryPlugin(RendererPlugin) orelse unreachable;
         renderer.main_camera = scene.main_camera;
@@ -192,7 +193,24 @@ pub const GamePlugin = struct {
         scene.world.startWorld();
     }
 
-    fn createScoreText(self: *Self, world: *gow.GameObjectWorldPlugin) *gow.GameObject {
+    fn getOrLoadBlankTextureAsset(
+        name: []const u8, 
+        color: rl.Color, 
+        width: i32, height: i32, 
+        allocator: std.mem.Allocator
+    ) *assets.TextureAsset {
+        const asset = assets.AssetManager.getAsset(assets.TextureAsset, name) 
+            orelse assets.TextureAsset.loadFromMemory(
+                Renderer2d.createBlankTextureWithColor(color, width, height, allocator) orelse unreachable, 
+                name
+            ) orelse unreachable;
+
+        // log.Logger.app_log(log.LogLevel.info, "asset {s} has id {d}", .{name, asset.texture.id});
+
+        return asset;
+    }
+
+    fn createScoreText(self: *Self, world: *gow.GameObjectWorldPlugin, app: *const gg.GamgineApp) *gow.GameObject {
         const score_txt = world.newObject("Score Text") orelse unreachable;
 
         const text_size = rl.MeasureTextEx(rl.GetFontDefault(), "999999", @as(f32, @floatFromInt(self.score_font_size)), 1);
@@ -200,37 +218,62 @@ pub const GamePlugin = struct {
         const height: i32 = @intFromFloat(text_size.y);
         const text_x: f32 = @as(f32, @floatFromInt(self.app.window_config.width)) / 2 - text_size.x / 2;
 
-        const texture = Renderer2d.createBlankTextureWithColor(rl.BLANK, width, height, std.heap.page_allocator) orelse unreachable;
+        const texture_asset = getOrLoadBlankTextureAsset("Score Text Texture", rl.BLANK, width, height, app.gpa);
 
         _ = score_txt
             .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = text_x, .y = 50}, 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(Renderer2d, Renderer2d.create(texture, 10));
+            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 10));
 
         self.score_renderer = score_txt.getComponentDataMut(Renderer2d) orelse unreachable;
 
         return score_txt;
     }
 
-    fn createPlayer(self: *Self, world: *gow.GameObjectWorldPlugin) *gow.GameObject {
+    fn createPlayer(self: *Self, world: *gow.GameObjectWorldPlugin, app: *const gg.GamgineApp) *gow.GameObject {
         const player = world.newObject("Player") orelse unreachable;
+
+        const side_int: i32 = @intFromFloat(self.bird_side);
+        const player_texture_asset = getOrLoadBlankTextureAsset("Player", rl.RED, side_int, side_int, app.gpa);
+
         _ = player
             .addComponent(CharacterController, CharacterController.create(750))
             .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = 50, .y = 275}, 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(Collider, Collider.create(self.bird_side, self.bird_side, ColliderTag.player));
+            .addComponent(Collider, Collider.create(self.bird_side, self.bird_side, ColliderTag.player))
+            .addComponent(Renderer2d, Renderer2d.create(player_texture_asset, 0));
 
         self.player_collider = player.getComponentData(Collider) orelse unreachable;
-
-        const side_int: i32 = @intFromFloat(self.bird_side);
-        const texture = Renderer2d.createBlankTextureWithColor(rl.RED, side_int, side_int, std.heap.page_allocator) orelse unreachable;
-        _ = player.addComponent(Renderer2d, Renderer2d.create(texture, 0));
 
         return player;
     }
 
-    fn createPipeSpawner(self: *Self, world: *gow.GameObjectWorldPlugin, app: *const gg.GamgineApp, interval: f32, move_speed: f32) *gow.GameObject {
+    fn createPipeSpawner(
+        self: *Self, 
+        world: *gow.GameObjectWorldPlugin, 
+        app: *const gg.GamgineApp, 
+        interval: f32, 
+        move_speed: f32
+    ) *gow.GameObject {
         const spawner = world.newObject("Pipe Spawner") orelse unreachable;
-        const top_pipe_prefab = self.createPipePrefab("Top Pipe Prefab", app, move_speed, rl.GREEN);
-        const bottom_pipe_prefab = self.createPipePrefab("Bottom Pipe Prefab", app, move_speed, rl.LIME);
+
+        const top_pipe_texture_asset = getOrLoadBlankTextureAsset(
+            "Top Pipe Texture", 
+            rl.GREEN,
+            @intFromFloat(self.pipe_width), 
+            @intFromFloat(self.pipe_height), 
+            app.gpa
+        );
+
+        const bottom_pipe_texture_asset = getOrLoadBlankTextureAsset(
+            "Bottom Pipe Texture", 
+            rl.LIME,
+            @intFromFloat(self.pipe_width), 
+            @intFromFloat(self.pipe_height), 
+            app.gpa
+        );
+
+        const top_pipe_prefab = self.createPipePrefab("Top Pipe Prefab", move_speed, top_pipe_texture_asset);
+        const bottom_pipe_prefab = self.createPipePrefab("Bottom Pipe Prefab", move_speed, bottom_pipe_texture_asset);
+
         const score_prefab = self.createScorePrefab("Score Prefab", move_speed);
 
         _ = spawner.addComponent(Spawner, Spawner.create(interval, top_pipe_prefab, bottom_pipe_prefab, score_prefab, self.gap_height));
@@ -252,7 +295,12 @@ pub const GamePlugin = struct {
         return prefab;
     }
 
-    fn createPipePrefab(self: *Self, name: []const u8, app: *const gg.GamgineApp, move_speed: f32, color: rl.Color) *gow.GameObject {
+    fn createPipePrefab(
+        self: *Self, 
+        name: []const u8, 
+        move_speed: f32, 
+        texture_asset: *assets.TextureAsset
+    ) *gow.GameObject {
         const maybe_prefab = self.world.getPrefab(name);
         if (maybe_prefab) |prefab| return prefab;
 
@@ -261,16 +309,9 @@ pub const GamePlugin = struct {
         _ = prefab 
             .addComponent(Transform2d, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}))
             .addComponent(AutoMover, AutoMover.create(move_speed, rl.Vector2{.x = -1, .y = 0}))
-            .addComponent(Collider, Collider.create(self.pipe_width, self.pipe_height, ColliderTag.pipe));
+            .addComponent(Collider, Collider.create(self.pipe_width, self.pipe_height, ColliderTag.pipe))
+            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 0));
 
-        const texture = Renderer2d.createBlankTextureWithColor(
-            color,
-            @intFromFloat(self.pipe_width), 
-            @intFromFloat(self.pipe_height), 
-            app.gpa
-        ) orelse unreachable;
-
-        _ = prefab.addComponent(Renderer2d, Renderer2d.create(texture, 0));
 
         return prefab;
     }

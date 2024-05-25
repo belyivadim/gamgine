@@ -4,7 +4,8 @@ const log = @import("../../engine/core/log.zig");
 const renderer = @import("../../engine/plugins/game_object_world/rl_renderer.zig");
 const gow = @import("../../engine/plugins/game_object_world/game_object_world.zig");
 const InputPlugin = @import("../../engine/plugins/inputs/rl_input.zig").InputPlugin;
-const scene_manager = @import("../../engine/services/scenes/scene_manager_gow.zig");
+const SceneManager = @import("../../engine/services/scenes/scene_manager_gow.zig").SceneManager;
+const AssetManager = @import("../../engine/services/asset_manager.zig").AssetManager;
 const game = @import("game.zig");
 
 pub fn entry() !void {
@@ -13,7 +14,8 @@ pub fn entry() !void {
     _ = gamgine
        .setGpa(std.heap.page_allocator)
        .setFrameAllocator(std.heap.page_allocator)
-       .addService(scene_manager.SceneManager.make)
+       .addService(SceneManager.make)
+       .addService(AssetManager.make)
        .addPlugin(InputPlugin.make)
        .addPlugin(gow.GameObjectWorldPlugin.make) // NOTE: put it before init plugin because of the way I am handling collisions
        .addPlugin(game.GamePlugin.make)
