@@ -94,6 +94,85 @@ pub const TextureAsset = struct {
         }
     }
 
+    pub fn getOrLoad(path: []const u8) ?*Self {
+        const maybe_asset = AssetManager.getAsset(TextureAsset, path);
+        if (maybe_asset) |asset| return asset;
+
+        const texture = rl.LoadTexture(@ptrCast(path));
+        return Self.loadFromMemoryForced(texture, path);
+    }
+
+    pub fn getOrLoadResized(path: []const u8, desired_width: i32, desired_height: i32) ?*Self {
+        var old_texture: ?rl.Texture = null;
+
+        const maybe_asset = AssetManager.getAsset(TextureAsset, path);
+        if (maybe_asset) |asset| {
+            if (asset.texture.width == desired_width and asset.texture.height == desired_height) {
+                return asset;
+            } else {
+                old_texture = asset.texture;
+            }
+        }
+
+        var image = rl.LoadImage(@ptrCast(path));
+        rl.ImageResizeNN(&image, desired_width, desired_height);
+        if (!rl.IsImageReady(image)) {
+            log.Logger.core_log(log.LogLevel.err, "Could not resize the image from file {s}", .{path});
+            rl.UnloadImage(image);
+            return null;
+        }
+
+        const new_texture = rl.LoadTextureFromImage(image);
+        const maybe_new_asset = Self.loadFromMemoryForced(new_texture, path);
+
+        if (maybe_new_asset == null) return null;
+
+        if (old_texture) |texture| {
+            rl.UnloadTexture(texture);
+        }
+
+        return maybe_new_asset;
+    }
+
+    pub fn getOrLoadResizedHeight(path: []const u8, desired_height: i32) ?*Self {
+        var old_texture: ?rl.Texture = null;
+
+        const maybe_asset = AssetManager.getAsset(TextureAsset, path);
+        if (maybe_asset) |asset| {
+            if (asset.texture.height == desired_height) {
+                return asset;
+            } else {
+                old_texture = asset.texture;
+            }
+        }
+
+        var image = rl.LoadImage(@ptrCast(path));
+        if (!rl.IsImageReady(image)) {
+            log.Logger.core_log(log.LogLevel.err, "Could not load image from file {s}", .{path});
+            rl.UnloadImage(image);
+            return null;
+        }
+
+        const desired_width = image.width * @divFloor(desired_height, image.height);
+        rl.ImageResizeNN(&image, desired_width, desired_height);
+        if (!rl.IsImageReady(image)) {
+            log.Logger.core_log(log.LogLevel.err, "Could not resize the image from file {s}", .{path});
+            rl.UnloadImage(image);
+            return null;
+        }
+
+        const new_texture = rl.LoadTextureFromImage(image);
+        const maybe_new_asset = Self.loadFromMemoryForced(new_texture, path);
+
+        if (maybe_new_asset == null) return null;
+
+        if (old_texture) |texture| {
+            rl.UnloadTexture(texture);
+        }
+
+        return maybe_new_asset;
+    }
+
     fn loadFromMemoryForced(texture: rl.Texture, name: []const u8) ?*Self {
         if (!rl.IsTextureReady(texture)) {
             log.Logger.core_log(log.LogLevel.err, "Texture: \"{s}\" is not ready.", .{name});
