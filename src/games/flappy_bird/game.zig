@@ -12,6 +12,7 @@ const log = @import("../../engine/core/log.zig");
 const InputPlugin = @import("../../engine/plugins/inputs/rl_input.zig").InputPlugin;
 const Key = @import("../../engine/plugins/inputs/rl_input.zig").KeyboardKey;
 const assets = @import("../../engine/services/assets.zig");
+const animator = @import("../../engine/plugins/game_object_world/components/sprite_animator.zig");
 
 
 pub const GamePlugin = struct {
@@ -235,21 +236,56 @@ pub const GamePlugin = struct {
     fn createPlayer(self: *Self, world: *gow.GameObjectWorldPlugin, app: *const gg.GamgineApp) *gow.GameObject {
         const player = world.newObject("Player") orelse unreachable;
 
-        _ = app;
         const side_int: i32 = @intFromFloat(self.bird_side);
         const collider_side = self.bird_side - self.bird_side * 0.1;
 
 
         const texture_path = Self.cwd ++ "resources/assets/sprites/bird.png";
-        const player_texture_asset = assets.TextureAsset.getOrLoadResized(texture_path, side_int, side_int) orelse unreachable;
+        const player_texture_asset = assets.TextureAsset.getOrLoadResizedHeight(texture_path, side_int) orelse unreachable;
+
+        // correction probably will not work on different resolutions
+        const texture_side_corrected: f32 = @floatFromInt(player_texture_asset.texture.height - 2); 
+
+        const texture_frame_rec = rl.Rectangle{
+            .x = 0, 
+            .y = 0, 
+            .width = texture_side_corrected, 
+            .height = texture_side_corrected,
+        };
 
         _ = player
             .addComponent(CharacterController, CharacterController.create(750))
             .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = 50, .y = 275}, 0, rl.Vector2{.x = 1, .y = 1}))
             .addComponent(Collider, Collider.create(collider_side, collider_side, ColliderTag.player))
-            .addComponent(Renderer2d, Renderer2d.create(player_texture_asset, 0, rl.WHITE));
+            .addComponent(animator.SpriteAnimator, animator.SpriteAnimator.create(app.gpa))
+            .addComponent(Renderer2d, Renderer2d.createWithCustomFrameRec(player_texture_asset, 0, rl.WHITE, texture_frame_rec));
 
         self.player_collider = player.getComponentData(Collider) orelse unreachable;
+
+        const player_renderer = player.getComponentDataMut(Renderer2d) orelse unreachable;
+        const player_animator = player.getComponentDataMut(animator.SpriteAnimator) orelse unreachable;
+
+        const animations_fps = 8;
+
+        player_animator.addAnimation(animator.SpriteAnimation.create(
+                "Idle",
+                animations_fps,
+                1,
+                texture_side_corrected,
+                texture_side_corrected,
+                true,
+                player_renderer
+        ));
+
+        player_animator.addAnimation(animator.SpriteAnimation.create(
+                "Flap",
+                animations_fps,
+                4,
+                texture_side_corrected,
+                texture_side_corrected,
+                false,
+                player_renderer
+        ));
 
         return player;
     }
@@ -640,6 +676,8 @@ const CharacterController = struct {
     velocity: f32, // only Y axis
     thrust_force: f32,
 
+    character_animator: *animator.SpriteAnimator,
+
     const Gravity: f32 = 9.7 * 100;
 
     pub fn create(thrust_force: f32) Self {
@@ -648,6 +686,7 @@ const CharacterController = struct {
             .input = undefined,
             .velocity = 0,
             .thrust_force = thrust_force,
+            .character_animator = undefined,
         };
     }
 
@@ -655,15 +694,18 @@ const CharacterController = struct {
     pub fn start(self: *Self, owner: *gow.GameObject) void {
         self.transform = owner.getComponentDataMut(Transform2d) orelse unreachable;
         self.input = owner.app.queryPlugin(InputPlugin) orelse unreachable;
+        self.character_animator = owner.getComponentDataMut(animator.SpriteAnimator) orelse unreachable;
     }
 
     pub fn update(self: *Self, dt: f32, _: *gow.GameObject) void {
         if (self.input.isKeyPressedOnce(Key.KEY_SPACE)) {
             self.velocity -= self.thrust_force;
+            self.character_animator.resetAndPlayAnimation("Flap");
         }
 
         self.velocity += Gravity * dt;
 
+        self.lean();
         self.transform.translate(rl.Vector2{.x = 0, .y = self.velocity * dt});
     }
 
@@ -675,6 +717,14 @@ const CharacterController = struct {
     }
 
     pub fn setActive(_: *Self, _: bool) void {
+    }
+
+    pub fn lean(self: *Self) void {
+        const max_vel_y: f32 = 800;
+        const vel_y = rl.Clamp(self.velocity, -max_vel_y, max_vel_y);
+        const normalized_vel_y = vel_y / max_vel_y;
+        const lean_angle = @sin(normalized_vel_y) * 35;
+        self.transform.rotation = lean_angle;
     }
 };
 
