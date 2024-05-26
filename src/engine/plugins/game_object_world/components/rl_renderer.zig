@@ -11,16 +11,18 @@ pub const Renderer2d = struct {
 
     texture_asset: *TextureAsset,
     layer: i32,
+    tint: rl.Color,
     transform: *const Transform2d,
     renderer_plugin: *RendererPlugin,
 
     is_active: bool,
 
-    pub fn create(texture_asset: *TextureAsset, layer: i32) Self { 
+    pub fn create(texture_asset: *TextureAsset, layer: i32, tint: rl.Color) Self { 
         return Self{
             .texture_asset = texture_asset,
             .transform = &Transform2d.Empty,
             .layer = layer,
+            .tint = tint,
             .renderer_plugin = undefined,
             .is_active = true,
         };
@@ -58,7 +60,7 @@ pub const Renderer2d = struct {
     }
 
     pub fn clone(self: *const Self) Self {
-        return Renderer2d.create(self.texture_asset, self.layer);
+        return Renderer2d.create(self.texture_asset, self.layer, self.tint);
     }
 
     pub fn setActive(self: *Self, active: bool) void {

@@ -64,7 +64,7 @@ pub const RlRendererPlugin = struct {
 
 
             for (self.render_queue.items) |renderer| {
-                rl.DrawTextureEx(renderer.texture_asset.texture, renderer.transform.position, renderer.transform.rotation, 1, rl.WHITE);
+                rl.DrawTextureEx(renderer.texture_asset.texture, renderer.transform.position, renderer.transform.rotation, 1, renderer.tint);
             }
         }
     }

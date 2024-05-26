@@ -225,7 +225,7 @@ pub const GamePlugin = struct {
 
         _ = score_txt
             .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = text_x, .y = 50}, 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 10));
+            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 10, rl.WHITE));
 
         self.score_renderer = score_txt.getComponentDataMut(Renderer2d) orelse unreachable;
 
@@ -237,7 +237,7 @@ pub const GamePlugin = struct {
 
         _ = app;
         const side_int: i32 = @intFromFloat(self.bird_side);
-        // const player_texture_asset = getOrLoadBlankTextureAsset("Player", rl.RED, side_int, side_int, app.gpa);
+        const collider_side = self.bird_side - self.bird_side * 0.1;
 
 
         const texture_path = Self.cwd ++ "resources/assets/sprites/bird.png";
@@ -246,8 +246,8 @@ pub const GamePlugin = struct {
         _ = player
             .addComponent(CharacterController, CharacterController.create(750))
             .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = 50, .y = 275}, 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(Collider, Collider.create(self.bird_side, self.bird_side, ColliderTag.player))
-            .addComponent(Renderer2d, Renderer2d.create(player_texture_asset, 0));
+            .addComponent(Collider, Collider.create(collider_side, collider_side, ColliderTag.player))
+            .addComponent(Renderer2d, Renderer2d.create(player_texture_asset, 0, rl.WHITE));
 
         self.player_collider = player.getComponentData(Collider) orelse unreachable;
 
@@ -262,22 +262,6 @@ pub const GamePlugin = struct {
         move_speed: f32
     ) *gow.GameObject {
         const spawner = world.newObject("Pipe Spawner") orelse unreachable;
-
-        // const top_pipe_texture_asset = getOrLoadBlankTextureAsset(
-        //     "Top Pipe Texture", 
-        //     rl.GREEN,
-        //     @intFromFloat(self.pipe_width), 
-        //     @intFromFloat(self.pipe_height), 
-        //     app.gpa
-        // );
-
-        //const bottom_pipe_texture_asset = getOrLoadBlankTextureAsset(
-        //    "Bottom Pipe Texture", 
-        //    rl.LIME,
-        //    @intFromFloat(self.pipe_width), 
-        //    @intFromFloat(self.pipe_height), 
-        //    app.gpa
-        //);
 
         _ = app;
         const bottom_texture_path = Self.cwd ++ "resources/assets/sprites/pipe_bottom.png";
@@ -323,7 +307,7 @@ pub const GamePlugin = struct {
             .addComponent(Transform2d, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}))
             .addComponent(AutoMover, AutoMover.create(move_speed, rl.Vector2{.x = -1, .y = 0}, self.pipe_width))
             .addComponent(Collider, Collider.create(self.pipe_width, self.pipe_height, ColliderTag.pipe))
-            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 0));
+            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 0, rl.WHITE));
 
 
         return prefab;
@@ -348,7 +332,7 @@ pub const GamePlugin = struct {
             BackgroundSpawner.create(bg, bg_width, move_speed, -1)
         );
 
-        return spawner;
+       return spawner;
     }
 
     fn createBackgroundPrefab(
@@ -362,9 +346,10 @@ pub const GamePlugin = struct {
 
         const prefab = self.world.createPrefab(name) orelse unreachable;
 
+        const bg_tint = rl.Color{.r = 255, .g = 255, .b = 255, .a = 150};
         _ = prefab
             .addComponent(Transform2d, Transform2d.create(position, 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(Renderer2d, Renderer2d.create(texture_asset, -10));
+            .addComponent(Renderer2d, Renderer2d.create(texture_asset, -10, bg_tint));
 
         return prefab;
     }
