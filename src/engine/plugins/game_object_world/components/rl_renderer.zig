@@ -10,6 +10,7 @@ pub const Renderer2d = struct {
     const Self = @This();
 
     texture_asset: *TextureAsset,
+    frame_rec: rl.Rectangle,
     layer: i32,
     tint: rl.Color,
     transform: *const Transform2d,
@@ -18,8 +19,19 @@ pub const Renderer2d = struct {
     is_active: bool,
 
     pub fn create(texture_asset: *TextureAsset, layer: i32, tint: rl.Color) Self { 
+        const frame_rec = rl.Rectangle{
+            .x = 0, 
+            .y = 0, 
+            .width =  @floatFromInt(texture_asset.texture.width), 
+            .height = @floatFromInt(texture_asset.texture.height),
+        };
+        return Self.createWithCustomFrameRec(texture_asset, layer, tint, frame_rec);
+    }
+
+    pub fn createWithCustomFrameRec(texture_asset: *TextureAsset, layer: i32, tint: rl.Color, frame_rec: rl.Rectangle) Self {
         return Self{
             .texture_asset = texture_asset,
+            .frame_rec = frame_rec,
             .transform = &Transform2d.Empty,
             .layer = layer,
             .tint = tint,
@@ -60,7 +72,7 @@ pub const Renderer2d = struct {
     }
 
     pub fn clone(self: *const Self) Self {
-        return Renderer2d.create(self.texture_asset, self.layer, self.tint);
+        return Renderer2d.createWithCustomFrameRec(self.texture_asset, self.layer, self.tint, self.frame_rec);
     }
 
     pub fn setActive(self: *Self, active: bool) void {

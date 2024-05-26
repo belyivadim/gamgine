@@ -64,7 +64,24 @@ pub const RlRendererPlugin = struct {
 
 
             for (self.render_queue.items) |renderer| {
-                rl.DrawTextureEx(renderer.texture_asset.texture, renderer.transform.position, renderer.transform.rotation, 1, renderer.tint);
+                const dest = rl.Rectangle{
+                    .x = renderer.transform.position.x,
+                    .y = renderer.transform.position.y,
+                    .width =  renderer.frame_rec.width * renderer.transform.scale.x,
+                    .height = renderer.frame_rec.height * renderer.transform.scale.y,
+                };
+
+                const origin = rl.Vector2{.x = 0, .y = 0};
+
+                rl.DrawTexturePro(
+                    renderer.texture_asset.texture,
+                    renderer.frame_rec,
+                    dest,
+                    origin,
+                    renderer.transform.rotation,
+                    renderer.tint
+                );
+                //rl.DrawTextureEx(renderer.texture_asset.texture, renderer.transform.position, renderer.transform.rotation, 1, renderer.tint);
             }
         }
     }
