@@ -40,6 +40,8 @@ pub const GamePlugin = struct {
     score_renderer: *Renderer2d,
     score_font_size: i32,
 
+    fb_font_numbers: *assets.FontAsset,
+
     pub fn make(app: *const gg.GamgineApp) error{OutOfMemory}!*gg.IPlugin {
         var plugin: *Self = try app.gpa.create(Self);
         plugin.iplugin.updateFn = update;
@@ -60,7 +62,7 @@ pub const GamePlugin = struct {
 
         plugin.score = 0;
         plugin.score_renderer = undefined;
-        plugin.score_font_size = 48;
+        plugin.score_font_size = 72;
 
         return &plugin.iplugin;
     }
@@ -145,14 +147,35 @@ pub const GamePlugin = struct {
         self.checkPlayerCollisions();
 
         // rendering score
+        var score_img = self.score_renderer.getTextureImage();
+
         var score_buf: [16]u8 = undefined;
         const score_str: [:0]u8 = @ptrCast(std.fmt.bufPrint(&score_buf, "{}", .{self.score}) catch { unreachable; });
         score_str[score_str.len] = 0;
-        const half_text_width = @divFloor(rl.MeasureText(score_str, self.score_font_size), 2);
+        const text_size = 
+                rl.MeasureTextEx(self.fb_font_numbers.font, score_str, @floatFromInt(self.score_font_size), 1);
+        const half_text_width = text_size.x / 2;
 
-        var score_img = self.score_renderer.getTextureImage();
+
+        // drawing
         rl.ImageClearBackground(&score_img, rl.BLANK);
-        rl.ImageDrawText(&score_img, score_str, @divFloor(score_img.width, 2) - half_text_width, 0, self.score_font_size, rl.GOLD);
+
+        // shadow 
+        rl.ImageDrawTextEx(&score_img, self.fb_font_numbers.font, score_str, 
+            rl.Vector2{
+                .x = @as(f32, @floatFromInt(score_img.width)) / 2 - half_text_width + 5, 
+                .y = 5
+            },
+            @floatFromInt(self.score_font_size), 1, rl.BLACK);
+
+        // text
+        rl.ImageDrawTextEx(&score_img, self.fb_font_numbers.font, score_str, 
+            rl.Vector2{
+                .x = @as(f32, @floatFromInt(score_img.width)) / 2 - half_text_width, 
+                .y = 0
+            },
+            @floatFromInt(self.score_font_size), 1, rl.WHITE);
+
         self.score_renderer.texture_asset.updateFromImage(score_img);
     }
 
@@ -217,7 +240,10 @@ pub const GamePlugin = struct {
     fn createScoreText(self: *Self, world: *gow.GameObjectWorldPlugin, app: *const gg.GamgineApp) *gow.GameObject {
         const score_txt = world.newObject("Score Text") orelse unreachable;
 
-        const text_size = rl.MeasureTextEx(rl.GetFontDefault(), "999999", @as(f32, @floatFromInt(self.score_font_size)), 1);
+        const fb_font_path = Self.cwd ++ "resources/assets/fonts/flappy_font_numbers.ttf";
+        self.fb_font_numbers = assets.FontAsset.getOrLoad(fb_font_path) orelse unreachable;
+
+        const text_size = rl.MeasureTextEx(self.fb_font_numbers.font, "999999", @as(f32, @floatFromInt(self.score_font_size)), 1);
         const width: i32 = @intFromFloat(text_size.x);
         const height: i32 = @intFromFloat(text_size.y);
         const text_x: f32 = @as(f32, @floatFromInt(self.app.window_config.width)) / 2 - text_size.x / 2;
