@@ -14,8 +14,6 @@ pub const SpriteAnimation = struct {
     frame_height: f32,
     loop: bool,
 
-    renderer: *Renderer2d,
-
     frame_counter: i32 = 0,
     current_frame: i32 = 0,
 
@@ -26,7 +24,6 @@ pub const SpriteAnimation = struct {
         fps: i32, number_of_frames: i32, 
         frame_width: f32, frame_height: f32, 
         loop: bool,
-        renderer: *Renderer2d
     ) Self {
         return Self{
             .name = name,
@@ -35,11 +32,10 @@ pub const SpriteAnimation = struct {
             .frame_width = frame_width,
             .frame_height = frame_height,
             .loop = loop,
-            .renderer = renderer,
         };
     }
 
-    pub fn play(self: *Self) void {
+    pub fn play(self: *Self, renderer: *Renderer2d) void {
         self.frame_counter += 1;
 
         if (self.frame_counter >= @divFloor(60, self.fps)) {
@@ -52,7 +48,7 @@ pub const SpriteAnimation = struct {
             }
 
             const frame_x = @as(f32, @floatFromInt(self.current_frame)) * self.frame_width;
-            self.renderer.frame_rec.x = frame_x;
+            renderer.frame_rec.x = frame_x;
         }
     }
 
@@ -67,26 +63,57 @@ pub const SpriteAnimator = struct {
     const Self = @This();
 
     animations: std.StringHashMap(SpriteAnimation),
-    current_animation: ?*SpriteAnimation = null,
+    current_animation: *SpriteAnimation,
+    renderer: *Renderer2d,
 
-    pub fn create(allocator: std.mem.Allocator) Self {
-        return Self{
+    pub fn create(allocator: std.mem.Allocator, initial_animation: SpriteAnimation) Self {
+        var animator = Self{
             .animations = std.StringHashMap(SpriteAnimation).init(allocator),
+            .renderer = undefined,
+            .current_animation = undefined,
         };
+
+        animator.addAnimation(initial_animation.name, initial_animation);
+        animator.current_animation = animator.animations.getPtr(initial_animation.name) orelse unreachable;
+
+        return animator;
     }
 
-    pub fn start(_: *Self, _: *gow.GameObject) void {
+
+    /// sets first animation from @animations as initial animation
+    pub fn createWithManyAnimations(allocator: std.mem.Allocator, animations: []const SpriteAnimation) Self {
+        std.debug.assert(animations.len > 0);
+
+        var animator = Self{
+            .animations = std.StringHashMap(SpriteAnimation).init(allocator),
+            .renderer = undefined,
+            .current_animation = undefined,
+        };
+
+        for (animations) |anim| {
+            animator.addAnimation(anim);
+        }
+
+        animator.current_animation = animator.animations.getPtr(animations[0].name) orelse unreachable;
+
+        return animator;
+    }
+
+    pub fn start(self: *Self, owner: *gow.GameObject) void {
+        self.renderer = owner.getComponentDataMut(Renderer2d) orelse {
+            log.Logger.core_log(log.LogLevel.err, "SpriteAnimator: owner does not have a Renderer2d component.\nExiting...", .{});
+            std.process.exit(1);
+        };
+
+        self.current_animation.play(self.renderer);
     }
 
     pub fn update(self: *Self, _: f32, _: *gow.GameObject) void {
-        if (self.current_animation) |anim| {
-            if (!anim.loop and anim.done) {
-                self.current_animation = null;
-                return;
-            }
-
-            anim.play();
+        if (!self.current_animation.loop and self.current_animation.done) {
+            return;
         }
+
+        self.current_animation.play(self.renderer);
     }
 
     pub fn destroy(self: *Self, _: *gow.GameObject) void {
@@ -94,7 +121,14 @@ pub const SpriteAnimator = struct {
     }
 
     pub fn clone(self: *const Self) Self {
-        return Self.create(self.animations.allocator);
+        return Self{
+            .animations = self.animations.clone() catch |err| {
+                log.Logger.core_log(log.LogLevel.err, "SpriteAnimation: could not be cloned: {any}\nExiting...", .{err});
+                std.process.exit(1);
+            },
+            .current_animation = self.current_animation,
+            .renderer = undefined, // will be set in start
+        };
     }
 
     pub fn setActive(_: *Self, _: bool) void {

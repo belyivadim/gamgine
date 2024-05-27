@@ -253,39 +253,34 @@ pub const GamePlugin = struct {
             .height = texture_side_corrected,
         };
 
-        _ = player
-            .addComponent(CharacterController, CharacterController.create(750))
-            .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = 50, .y = 275}, 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(Collider, Collider.create(collider_side, collider_side, ColliderTag.player))
-            .addComponent(animator.SpriteAnimator, animator.SpriteAnimator.create(app.gpa))
-            .addComponent(Renderer2d, Renderer2d.createWithCustomFrameRec(player_texture_asset, 0, rl.WHITE, texture_frame_rec));
-
-        self.player_collider = player.getComponentData(Collider) orelse unreachable;
-
-        const player_renderer = player.getComponentDataMut(Renderer2d) orelse unreachable;
-        const player_animator = player.getComponentDataMut(animator.SpriteAnimator) orelse unreachable;
-
         const animations_fps = 8;
-
-        player_animator.addAnimation(animator.SpriteAnimation.create(
+        const player_animations = [_]animator.SpriteAnimation{
+            animator.SpriteAnimation.create(
                 "Idle",
                 animations_fps,
                 1,
                 texture_side_corrected,
                 texture_side_corrected,
                 true,
-                player_renderer
-        ));
+            ),
+            animator.SpriteAnimation.create(
+                    "Flap",
+                    animations_fps,
+                    4,
+                    texture_side_corrected,
+                    texture_side_corrected,
+                    false,
+            )
+        };
 
-        player_animator.addAnimation(animator.SpriteAnimation.create(
-                "Flap",
-                animations_fps,
-                4,
-                texture_side_corrected,
-                texture_side_corrected,
-                false,
-                player_renderer
-        ));
+        _ = player
+            .addComponent(CharacterController, CharacterController.create(750))
+            .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = 50, .y = 275}, 0, rl.Vector2{.x = 1, .y = 1}))
+            .addComponent(Collider, Collider.create(collider_side, collider_side, ColliderTag.player))
+            .addComponent(animator.SpriteAnimator, animator.SpriteAnimator.createWithManyAnimations(app.gpa, &player_animations))
+            .addComponent(Renderer2d, Renderer2d.createWithCustomFrameRec(player_texture_asset, 0, rl.WHITE, texture_frame_rec));
+
+        self.player_collider = player.getComponentData(Collider) orelse unreachable;
 
         return player;
     }
