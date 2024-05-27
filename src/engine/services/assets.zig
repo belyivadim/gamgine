@@ -10,6 +10,7 @@ pub const AssetManager = struct {
     var iservice: gg.IService = undefined;
 
     var textures: std.StringHashMap(TextureAsset) = undefined;
+    var fonts: std.StringHashMap(FontAsset) = undefined;
 
     pub fn make(app: *const gg.GamgineApp) error{OutOfMemory}!*gg.IService {
         Self.iservice.startUpFn = startUp;
@@ -17,6 +18,7 @@ pub const AssetManager = struct {
         Self.iservice.getTypeIdFn = getTypeId;
 
         Self.textures = std.StringHashMap(TextureAsset).init(app.gpa);
+        Self.fonts = std.StringHashMap(FontAsset).init(app.gpa);
 
         return &Self.iservice;
     }
@@ -27,11 +29,17 @@ pub const AssetManager = struct {
 
 
     fn tearDown(_: *gg.IService) void {
-        var it = Self.textures.valueIterator();
-        while (it.next()) |asset| {
+        var it_textures = Self.textures.valueIterator();
+        while (it_textures.next()) |asset| {
             rl.UnloadTexture(asset.texture);
         }
         Self.textures.deinit();
+
+        var it_fonts = Self.fonts.valueIterator();
+        while (it_fonts.next()) |asset| {
+            rl.UnloadFont(asset.font);
+        }
+        Self.fonts.deinit();
     }
 
     pub fn getTypeId() utils.TypeId {
@@ -41,6 +49,7 @@ pub const AssetManager = struct {
     pub fn getAsset(comptime T: type, name: []const u8) ?*T {
         switch (T) {
             TextureAsset => return Self.textures.getPtr(name),
+            FontAsset => return Self.fonts.getPtr(name),
             else => return null,
         }
     }
@@ -227,5 +236,66 @@ pub const TextureAsset = struct {
         const texture = rl.LoadTextureFromImage(img);
 
         return Self.loadFromMemoryForced(texture, name);
+    }
+};
+
+
+pub const FontAsset = struct {
+    const Self = @This();
+
+    font: rl.Font,
+
+    pub fn load(path: []const u8) ?*Self {
+        if (Self.alreadyLoaded(path)) {
+            return null;
+        }
+
+        const font = rl.LoadFont(@ptrCast(path));
+        return Self.addFontToAssetManagerForced(path, font);
+    }
+
+    pub fn reload(path: []const u8) ?*Self {
+        if (!AssetManager.fonts.contains(path)) {
+            log.Logger.core_log(log.LogLevel.warning, "Could not reload FontAsset \"{s}\", because it is not already loaded.", .{path});
+            log.Logger.core_log(log.LogLevel.info, "NOTE: if you want to load asset, use `load` function instead.", .{});
+            return null;
+        }
+
+        const font = rl.LoadFont(@ptrCast(path));
+        return Self.addFontToAssetManagerForced(path, font);
+    }
+
+    pub fn getOrLoad(path: []const u8) ?*Self {
+        const maybe_asset = AssetManager.getAsset(FontAsset, path);
+        if (maybe_asset) |asset| return asset;
+
+        const font = rl.LoadFont(@ptrCast(path));
+        return Self.addFontToAssetManagerForced(path, font);
+    }
+
+    fn addFontToAssetManagerForced(name: []const u8, font: rl.Font) ?*Self {
+        if (!rl.IsFontReady(font)) {
+            log.Logger.core_log(log.LogLevel.err, "Font: \"{s}\" is not ready.", .{name});
+            rl.UnloadFont(font);
+            return null;
+        }
+
+        AssetManager.fonts.put(name, Self{.font = font}) catch |err| {
+            log.Logger.core_log(log.LogLevel.err, "Could not add font \"{s}\" to the AssetManager: {any}", .{name, err});
+            rl.UnloadFont(font);
+            return null;
+        };
+
+        return AssetManager.getAsset(FontAsset, name);
+    }
+
+    fn alreadyLoaded(name: []const u8) bool {
+        if (AssetManager.fonts.contains(name)) {
+            log.Logger.core_log(log.LogLevel.warning, "Could not load FontAsset \"{s}\", because it was already loaded.", .{name});
+            log.Logger.core_log(log.LogLevel.info, "NOTE: if you want to reload asset, use `reload` function instead.", .{});
+            return true;
+        }
+
+        return false;
     }
 };
