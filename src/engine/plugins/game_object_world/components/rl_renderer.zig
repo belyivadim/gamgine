@@ -4,14 +4,16 @@ const log = @import("../../../core/log.zig");
 const gow = @import("../game_object_world.zig");
 const Transform2d = @import("rl_transform.zig").Transform2d;
 const RendererPlugin = @import("../rl_renderer.zig").RlRendererPlugin;
+const IRenderer2d = @import("../rl_renderer.zig").IRenderer2d;
 const TextureAsset = @import("../../../services/assets.zig").TextureAsset;
 
 pub const Renderer2d = struct {
     const Self = @This();
 
+    irenderer: IRenderer2d,
+
     texture_asset: *TextureAsset,
     frame_rec: rl.Rectangle,
-    layer: i32,
     tint: rl.Color,
     transform: *const Transform2d,
     renderer_plugin: *RendererPlugin,
@@ -30,10 +32,13 @@ pub const Renderer2d = struct {
 
     pub fn createWithCustomFrameRec(texture_asset: *TextureAsset, layer: i32, tint: rl.Color, frame_rec: rl.Rectangle) Self {
         return Self{
+            .irenderer = IRenderer2d{
+                .renderFn = render,
+                .layer = layer,
+            },
             .texture_asset = texture_asset,
             .frame_rec = frame_rec,
             .transform = &Transform2d.Empty,
-            .layer = layer,
             .tint = tint,
             .renderer_plugin = undefined,
             .is_active = true,
@@ -59,7 +64,7 @@ pub const Renderer2d = struct {
         };
 
         if (self.is_active) {
-            self.renderer_plugin.addRenderer2d(self);
+            self.renderer_plugin.addRenderer2d(&self.irenderer);
         }
     }
 
@@ -68,11 +73,11 @@ pub const Renderer2d = struct {
     }
 
     pub fn destroy(self: *Self, _: *gow.GameObject) void {
-        self.renderer_plugin.removeRenderer2d(self);
+        self.renderer_plugin.removeRenderer2d(&self.irenderer);
     }
 
     pub fn clone(self: *const Self) Self {
-        return Renderer2d.createWithCustomFrameRec(self.texture_asset, self.layer, self.tint, self.frame_rec);
+        return Renderer2d.createWithCustomFrameRec(self.texture_asset, self.irenderer.layer, self.tint, self.frame_rec);
     }
 
     pub fn setActive(self: *Self, active: bool) void {
@@ -81,14 +86,36 @@ pub const Renderer2d = struct {
         self.is_active = active;
 
         if (active) {
-            self.renderer_plugin.addRenderer2d(self);
+            self.renderer_plugin.addRenderer2d(&self.irenderer);
         } else {
-            self.renderer_plugin.removeRenderer2d(self);
+            self.renderer_plugin.removeRenderer2d(&self.irenderer);
         }
     }
 
     pub fn getTextureImage(self: *const Self) rl.Image {
         return rl.LoadImageFromTexture(self.texture_asset.texture);
+    }
+
+    fn render(irenderer: *IRenderer2d, _: f32) void {
+        const self: *Self = @fieldParentPtr("irenderer", irenderer);
+
+        const dest = rl.Rectangle{
+            .x = self.transform.position.x,
+            .y = self.transform.position.y,
+            .width =  self.frame_rec.width * self.transform.scale.x,
+            .height = self.frame_rec.height * self.transform.scale.y,
+        };
+
+        const origin = rl.Vector2{.x = 0, .y = 0};
+
+        rl.DrawTexturePro(
+            self.texture_asset.texture,
+            self.frame_rec,
+            dest,
+            origin,
+            self.transform.rotation,
+            self.tint
+        );
     }
 };
 

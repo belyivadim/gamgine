@@ -6,7 +6,14 @@ const log = @import("../../core/log.zig");
 
 const gow = @import("game_object_world.zig");
 
-const Renderer2d = @import("components/rl_renderer.zig").Renderer2d;
+pub const IRenderer2d = struct {
+    renderFn: *const fn(*IRenderer2d, f32) void,
+    layer: i32,
+
+    pub fn render(irenderer: *IRenderer2d, dt: f32) void {
+        irenderer.renderFn(irenderer, dt);
+    }
+};
 
 
 pub const RlRendererPlugin = struct {
@@ -19,7 +26,7 @@ pub const RlRendererPlugin = struct {
     app: *const gg.GamgineApp,
     world: *gow.GameObjectWorldPlugin,
 
-    render_queue: std.ArrayList(*const Renderer2d),
+    render_queue: std.ArrayList(*IRenderer2d),
 
     // by default will be null,
     // can be changed at any time
@@ -33,7 +40,7 @@ pub const RlRendererPlugin = struct {
         renderer.iplugin.tearDownFn = tearDown;
         renderer.iplugin.getTypeIdFn = getTypeId;
         renderer.self_allocator = app.gpa;
-        renderer.render_queue = std.ArrayList(*const Renderer2d).init(app.gpa);
+        renderer.render_queue = std.ArrayList(*IRenderer2d).init(app.gpa);
         renderer.main_camera = null;
 
         renderer.app = app;
@@ -51,7 +58,7 @@ pub const RlRendererPlugin = struct {
         };
     }
 
-    fn update(iplugin: *gg.IPlugin, _: f32) void {
+    fn update(iplugin: *gg.IPlugin, dt: f32) void {
         const self: *Self = @fieldParentPtr("iplugin", iplugin);
 
         rl.BeginDrawing();
@@ -63,25 +70,8 @@ pub const RlRendererPlugin = struct {
             defer rl.EndMode2D();
 
 
-            for (self.render_queue.items) |renderer| {
-                const dest = rl.Rectangle{
-                    .x = renderer.transform.position.x,
-                    .y = renderer.transform.position.y,
-                    .width =  renderer.frame_rec.width * renderer.transform.scale.x,
-                    .height = renderer.frame_rec.height * renderer.transform.scale.y,
-                };
-
-                const origin = rl.Vector2{.x = 0, .y = 0};
-
-                rl.DrawTexturePro(
-                    renderer.texture_asset.texture,
-                    renderer.frame_rec,
-                    dest,
-                    origin,
-                    renderer.transform.rotation,
-                    renderer.tint
-                );
-                //rl.DrawTextureEx(renderer.texture_asset.texture, renderer.transform.position, renderer.transform.rotation, 1, renderer.tint);
+            for (self.render_queue.items) |irenderer| {
+                irenderer.render(dt);
             }
         }
     }
@@ -96,7 +86,7 @@ pub const RlRendererPlugin = struct {
         return utils.typeId(Self);
     }
 
-    pub fn addRenderer2d(self: *Self, renderer2d: *const Renderer2d) void {
+    pub fn addRenderer2d(self: *Self, renderer2d: *IRenderer2d) void {
         for (0..self.render_queue.items.len) |i| {
             if (self.render_queue.items[i].layer > renderer2d.layer) {
                 const index = if (i == 0) 0 else i - 1;
@@ -115,7 +105,7 @@ pub const RlRendererPlugin = struct {
         };
     }
 
-    pub fn removeRenderer2d(self: *Self, renderer2d: *const Renderer2d) void {
+    pub fn removeRenderer2d(self: *Self, renderer2d: *const IRenderer2d) void {
         for (0..self.render_queue.items.len) |i| {
             if (self.render_queue.items[i] == renderer2d) {
                 _ = self.render_queue.orderedRemove(i);
