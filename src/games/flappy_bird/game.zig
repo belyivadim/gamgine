@@ -4,6 +4,7 @@ const rl = @import("../../engine/core/external/raylib.zig");
 const utils = @import("../../engine/core/utils.zig");
 const gow = @import("../../engine/plugins/game_object_world/game_object_world.zig");
 const Renderer2d = @import("../../engine/plugins/game_object_world/components/rl_renderer.zig").Renderer2d;
+const TextRenderer = @import("../../engine/plugins/game_object_world/components/text_renderer.zig").TextRenderer;
 const RendererPlugin = @import("../../engine/plugins/game_object_world/rl_renderer.zig").RlRendererPlugin;
 const Transform2d = @import("../../engine/plugins/game_object_world/components/rl_transform.zig").Transform2d;
 const SceneManager = @import("../../engine/services/scenes/scene_manager_gow.zig").SceneManager;
@@ -37,10 +38,9 @@ pub const GamePlugin = struct {
     gap_height: f32,
 
     score: i32,
-    score_renderer: *Renderer2d,
     score_font_size: i32,
-
-    fb_font_numbers: *assets.FontAsset,
+    score_buf: [16]u8,
+    score_str: [:0]u8,
 
     pub fn make(app: *const gg.GamgineApp) error{OutOfMemory}!*gg.IPlugin {
         var plugin: *Self = try app.gpa.create(Self);
@@ -61,8 +61,9 @@ pub const GamePlugin = struct {
         plugin.gap_height = plugin.bird_side * 3;
 
         plugin.score = 0;
-        plugin.score_renderer = undefined;
         plugin.score_font_size = 72;
+        plugin.score_buf = std.mem.zeroes([16]u8);
+        plugin.score_str = @ptrCast(plugin.score_buf[0..0]);
 
         return &plugin.iplugin;
     }
@@ -92,12 +93,20 @@ pub const GamePlugin = struct {
         });
 
         scene_manager.loadScene("Main Scene");
+
+        self.updateScoreStr();
     }
 
     fn gameower(self: *Self) void {
         const scene_manager = self.app.queryService(SceneManager) orelse unreachable;
         scene_manager.loadScene("Main Scene");
         self.score = 0;
+        self.updateScoreStr();
+    }
+
+    fn updateScoreStr(self: *Self) void {
+        self.score_str = @ptrCast(std.fmt.bufPrint(&self.score_buf, "{}", .{self.score}) catch { unreachable; });
+        self.score_str[self.score_str.len] = 0;
     }
 
     fn checkPlayerCollisions(self: *Self) void {
@@ -131,6 +140,7 @@ pub const GamePlugin = struct {
                     ColliderTag.gap => {
                         if (collider != self.last_collision) {
                             self.score += 1;
+                            self.updateScoreStr();
                         }
                     },
                     ColliderTag.player => unreachable,
@@ -145,38 +155,6 @@ pub const GamePlugin = struct {
         const self: *Self = @fieldParentPtr("iplugin", iplugin);
 
         self.checkPlayerCollisions();
-
-        // rendering score
-        var score_img = self.score_renderer.getTextureImage();
-
-        var score_buf: [16]u8 = undefined;
-        const score_str: [:0]u8 = @ptrCast(std.fmt.bufPrint(&score_buf, "{}", .{self.score}) catch { unreachable; });
-        score_str[score_str.len] = 0;
-        const text_size = 
-                rl.MeasureTextEx(self.fb_font_numbers.font, score_str, @floatFromInt(self.score_font_size), 1);
-        const half_text_width = text_size.x / 2;
-
-
-        // drawing
-        rl.ImageClearBackground(&score_img, rl.BLANK);
-
-        // shadow 
-        rl.ImageDrawTextEx(&score_img, self.fb_font_numbers.font, score_str, 
-            rl.Vector2{
-                .x = @as(f32, @floatFromInt(score_img.width)) / 2 - half_text_width + 5, 
-                .y = 5
-            },
-            @floatFromInt(self.score_font_size), 1, rl.BLACK);
-
-        // text
-        rl.ImageDrawTextEx(&score_img, self.fb_font_numbers.font, score_str, 
-            rl.Vector2{
-                .x = @as(f32, @floatFromInt(score_img.width)) / 2 - half_text_width, 
-                .y = 0
-            },
-            @floatFromInt(self.score_font_size), 1, rl.WHITE);
-
-        self.score_renderer.texture_asset.updateFromImage(score_img);
     }
 
     fn tearDown(iplugin: *gg.IPlugin) void {
@@ -237,24 +215,33 @@ pub const GamePlugin = struct {
         return asset;
     }
 
-    fn createScoreText(self: *Self, world: *gow.GameObjectWorldPlugin, app: *const gg.GamgineApp) *gow.GameObject {
+    fn createScoreText(self: *Self, world: *gow.GameObjectWorldPlugin, _: *const gg.GamgineApp) *gow.GameObject {
         const score_txt = world.newObject("Score Text") orelse unreachable;
+        const score_shadow_txt = world.newObject("Score Shadow Text") orelse unreachable;
 
         const fb_font_path = Self.cwd ++ "resources/assets/fonts/flappy_font_numbers.ttf";
-        self.fb_font_numbers = assets.FontAsset.getOrLoad(fb_font_path) orelse unreachable;
+        const fb_font_numbers = assets.FontAsset.getOrLoad(fb_font_path) orelse unreachable;
 
-        const text_size = rl.MeasureTextEx(self.fb_font_numbers.font, "999999", @as(f32, @floatFromInt(self.score_font_size)), 1);
-        const width: i32 = @intFromFloat(text_size.x);
-        const height: i32 = @intFromFloat(text_size.y);
-        const text_x: f32 = @as(f32, @floatFromInt(self.app.window_config.width)) / 2 - text_size.x / 2;
+        const text_x: f32 = @as(f32, @floatFromInt(self.app.window_config.width)) / 2;
 
-        const texture_asset = getOrLoadBlankTextureAsset("Score Text Texture", rl.BLANK, width, height, app.gpa);
 
         _ = score_txt
             .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = text_x, .y = 50}, 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 10, rl.WHITE));
+            .addComponent(TextRenderer, TextRenderer.create(
+                    self.score_str,
+                    fb_font_numbers,
+                    @floatFromInt(self.score_font_size),
+                    1, 0, rl.WHITE, true, false
+            ));
 
-        self.score_renderer = score_txt.getComponentDataMut(Renderer2d) orelse unreachable;
+        _ = score_shadow_txt
+            .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = text_x + 5, .y = 50 + 5}, 0, rl.Vector2{.x = 1, .y = 1}))
+            .addComponent(TextRenderer, TextRenderer.create(
+                    self.score_str,
+                    fb_font_numbers,
+                    @floatFromInt(self.score_font_size),
+                    1, -1, rl.BLACK, true, false
+            ));
 
         return score_txt;
     }
@@ -304,7 +291,7 @@ pub const GamePlugin = struct {
             .addComponent(Transform2d, Transform2d.create(rl.Vector2{.x = 50, .y = 275}, 0, rl.Vector2{.x = 1, .y = 1}))
             .addComponent(Collider, Collider.create(collider_side, collider_side, ColliderTag.player))
             .addComponent(animator.SpriteAnimator, animator.SpriteAnimator.createWithManyAnimations(app.gpa, &player_animations))
-            .addComponent(Renderer2d, Renderer2d.createWithCustomFrameRec(player_texture_asset, 0, rl.WHITE, texture_frame_rec));
+            .addComponent(Renderer2d, Renderer2d.createWithCustomFrameRec(player_texture_asset, 0, rl.WHITE, true, texture_frame_rec));
 
         self.player_collider = player.getComponentData(Collider) orelse unreachable;
 
@@ -364,7 +351,7 @@ pub const GamePlugin = struct {
             .addComponent(Transform2d, Transform2d.create(rl.Vector2Zero(), 0, rl.Vector2{.x = 1, .y = 1}))
             .addComponent(AutoMover, AutoMover.create(move_speed, rl.Vector2{.x = -1, .y = 0}, self.pipe_width))
             .addComponent(Collider, Collider.create(self.pipe_width, self.pipe_height, ColliderTag.pipe))
-            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 0, rl.WHITE));
+            .addComponent(Renderer2d, Renderer2d.create(texture_asset, 0, rl.WHITE, true));
 
 
         return prefab;
@@ -406,7 +393,7 @@ pub const GamePlugin = struct {
         const bg_tint = rl.Color{.r = 255, .g = 255, .b = 255, .a = 150};
         _ = prefab
             .addComponent(Transform2d, Transform2d.create(position, 0, rl.Vector2{.x = 1, .y = 1}))
-            .addComponent(Renderer2d, Renderer2d.create(texture_asset, -10, bg_tint));
+            .addComponent(Renderer2d, Renderer2d.create(texture_asset, -10, bg_tint, true));
 
         return prefab;
     }
