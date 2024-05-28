@@ -20,21 +20,25 @@ pub const Renderer2d = struct {
 
     is_active: bool,
 
-    pub fn create(texture_asset: *TextureAsset, layer: i32, tint: rl.Color) Self { 
+    pub fn create(texture_asset: *TextureAsset, layer: i32, tint: rl.Color, camera_mode_required: bool) Self { 
         const frame_rec = rl.Rectangle{
             .x = 0, 
             .y = 0, 
             .width =  @floatFromInt(texture_asset.texture.width), 
             .height = @floatFromInt(texture_asset.texture.height),
         };
-        return Self.createWithCustomFrameRec(texture_asset, layer, tint, frame_rec);
+        return Self.createWithCustomFrameRec(texture_asset, layer, tint, camera_mode_required, frame_rec);
     }
 
-    pub fn createWithCustomFrameRec(texture_asset: *TextureAsset, layer: i32, tint: rl.Color, frame_rec: rl.Rectangle) Self {
+    pub fn createWithCustomFrameRec(
+        texture_asset: *TextureAsset, layer: i32, tint: rl.Color, 
+        camera_mode_required: bool, frame_rec: rl.Rectangle
+    ) Self {
         return Self{
             .irenderer = IRenderer2d{
                 .renderFn = render,
                 .layer = layer,
+                .camera_mode_required = camera_mode_required,
             },
             .texture_asset = texture_asset,
             .frame_rec = frame_rec,
@@ -77,7 +81,9 @@ pub const Renderer2d = struct {
     }
 
     pub fn clone(self: *const Self) Self {
-        return Renderer2d.createWithCustomFrameRec(self.texture_asset, self.irenderer.layer, self.tint, self.frame_rec);
+        return Renderer2d.createWithCustomFrameRec(
+            self.texture_asset, self.irenderer.layer, self.tint, 
+            self.irenderer.camera_mode_required, self.frame_rec);
     }
 
     pub fn setActive(self: *Self, active: bool) void {
